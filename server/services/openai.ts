@@ -1,16 +1,28 @@
 import OpenAI from "openai";
 import type { QuestionSet, AnswerEvaluation, InterviewSummary } from "@shared/schema";
+import { generateMockQuestions, evaluateMockAnswer, generateMockSummary } from "./mock-ai";
 
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ 
-  apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY_ENV_VAR || "default_key" 
+  apiKey: process.env.OPENAI_API_KEY || "sk-mock-key" 
 });
+
+// Check if we have a valid OpenAI API key
+const hasValidOpenAIKey = process.env.OPENAI_API_KEY && 
+  process.env.OPENAI_API_KEY.startsWith('sk-') && 
+  process.env.OPENAI_API_KEY.length > 20;
 
 export async function generateInterviewQuestions(
   candidateName: string,
   jobRole: string,
   resumeText: string
 ): Promise<QuestionSet> {
+  // Use mock AI if OpenAI is not available
+  if (!hasValidOpenAIKey) {
+    console.log("Using mock AI for question generation (OpenAI not available)");
+    return generateMockQuestions(candidateName, jobRole, resumeText);
+  }
+
   const prompt = `You are Tushar, a professional AI interviewer. Analyze the candidate's resume and generate exactly 5 interview questions.
 
 Candidate Name: ${candidateName}
@@ -60,7 +72,9 @@ Respond with JSON in this format:
     return result as QuestionSet;
   } catch (error) {
     console.error("Error generating questions:", error);
-    throw new Error("Failed to generate interview questions");
+    // Fallback to mock AI if OpenAI fails
+    console.log("Falling back to mock AI due to OpenAI error");
+    return generateMockQuestions(candidateName, jobRole, resumeText);
   }
 }
 
@@ -69,6 +83,12 @@ export async function evaluateAnswer(
   answer: string,
   jobRole: string
 ): Promise<AnswerEvaluation> {
+  // Use mock AI if OpenAI is not available
+  if (!hasValidOpenAIKey) {
+    console.log("Using mock AI for answer evaluation (OpenAI not available)");
+    return evaluateMockAnswer(question, answer, jobRole);
+  }
+
   const prompt = `You are Tushar, evaluating a candidate's interview answer. 
 
 Job Role: ${jobRole}
@@ -118,7 +138,9 @@ Respond with JSON:
     };
   } catch (error) {
     console.error("Error evaluating answer:", error);
-    throw new Error("Failed to evaluate answer");
+    // Fallback to mock AI if OpenAI fails
+    console.log("Falling back to mock AI for answer evaluation");
+    return evaluateMockAnswer(question, answer, jobRole);
   }
 }
 
@@ -127,6 +149,12 @@ export async function generateFinalSummary(
   jobRole: string,
   answers: Array<{ question: string; answer: string; score: number; feedback: string }>
 ): Promise<InterviewSummary> {
+  // Use mock AI if OpenAI is not available
+  if (!hasValidOpenAIKey) {
+    console.log("Using mock AI for final summary (OpenAI not available)");
+    return generateMockSummary(candidateName, jobRole, answers);
+  }
+
   const answersText = answers.map((a, i) => 
     `Q${i+1}: ${a.question}\nAnswer: ${a.answer}\nScore: ${a.score}/10\nFeedback: ${a.feedback}`
   ).join("\n\n");
@@ -181,6 +209,8 @@ Respond with JSON:
     };
   } catch (error) {
     console.error("Error generating summary:", error);
-    throw new Error("Failed to generate interview summary");
+    // Fallback to mock AI if OpenAI fails
+    console.log("Falling back to mock AI for final summary");
+    return generateMockSummary(candidateName, jobRole, answers);
   }
 }

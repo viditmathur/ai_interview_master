@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FileUpload } from '@/components/file-upload';
+import { AIStatusBanner } from '@/components/ai-status-banner';
 import { startInterview } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
@@ -97,6 +98,8 @@ export default function InterviewUpload() {
         <h2 className="text-3xl font-bold text-gray-900 mb-4">Start Your AI Interview</h2>
         <p className="text-lg text-gray-600">Upload your resume and begin the intelligent interview process</p>
       </div>
+
+      <AIStatusBanner />
 
       <form onSubmit={handleSubmit}>
         <div className="grid lg:grid-cols-2 gap-8">

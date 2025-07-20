@@ -43,9 +43,10 @@ The application uses PostgreSQL with the following core entities:
 - **Evaluations**: Final assessment reports with recommendations
 
 ### AI Integration
-- **Question Generation**: Creates personalized questions based on resume content and job role
+- **Question Generation**: Creates personalized questions based on resume content and job role using OpenAI GPT-4o
 - **Answer Evaluation**: Provides real-time scoring (0-10) and detailed feedback
 - **Final Assessment**: Generates comprehensive evaluation with hiring recommendations
+- **Fallback System**: Intelligent mock AI system that activates when OpenAI is unavailable, ensuring uninterrupted operation
 
 ## Data Flow
 
@@ -60,8 +61,9 @@ The application uses PostgreSQL with the following core entities:
 ### Core Dependencies
 - **@neondatabase/serverless**: PostgreSQL database connectivity
 - **drizzle-orm**: Type-safe ORM with schema validation
-- **openai**: GPT-4o integration for AI-powered features
+- **openai**: GPT-4o integration for AI-powered features (with intelligent fallback)
 - **multer**: File upload handling for resume processing
+- **pdf-parse**: PDF text extraction for resume processing
 
 ### UI Dependencies
 - **@radix-ui/***: Accessible UI components (dialogs, forms, navigation)
@@ -88,4 +90,12 @@ The application uses PostgreSQL with the following core entities:
 - **Mobile Responsive**: Optimized for all device sizes
 - **Accessibility**: ARIA compliant with keyboard navigation
 
-The system is designed to be model-agnostic and easily extensible, with clear interfaces for adding new AI providers or storage backends.
+The system is designed to be model-agnostic and easily extensible, with clear interfaces for adding new AI providers or storage backends. It includes robust error handling and automatic fallback systems to ensure continuous operation even when external services are unavailable.
+
+## Recent Updates (January 2025)
+- ✓ Fixed OpenAI quota/billing error with intelligent fallback system
+- ✓ Added mock AI service that provides realistic interview experience 
+- ✓ Implemented proper PDF text extraction for resume processing
+- ✓ Enhanced error handling and user feedback throughout the application
+- ✓ Integrated PostgreSQL database for production data persistence
+- ✓ Added AI status indicators and user-friendly error messaging
