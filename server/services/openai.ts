@@ -4,6 +4,9 @@ import { generateMockQuestions, evaluateMockAnswer, generateMockSummary } from "
 import fetch from 'node-fetch';
 import fs from 'fs';
 import path from 'path';
+import { questionBank } from "@shared/schema";
+import { eq } from "drizzle-orm";
+import { storage } from "../storage";
 
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
 const openai = new OpenAI({ 
@@ -66,6 +69,16 @@ async function geminiEvaluateAnswer(question: string, answer: string, jobRole: s
   }
 }
 
+// Helper to get questions from the question bank
+async function getQuestionsFromBank(role: string, count: number): Promise<string[]> {
+  // Get all questions for the role
+  const all = await storage.getQuestionsByRole(role);
+  if (all.length < count) return [];
+  // Shuffle and pick count
+  const shuffled = all.sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, count).map(q => q.questionText);
+}
+
 // Gemini integration
 async function geminiGenerateQuestions(candidateName: string, jobRole: string, resumeText: string): Promise<QuestionSet> {
   let apiKey = process.env.GEMINI_API_KEY;
@@ -84,7 +97,7 @@ async function geminiGenerateQuestions(candidateName: string, jobRole: string, r
   }
   if (!apiKey) throw new Error('Gemini API key not set');
   console.log('Loaded GEMINI_API_KEY:', apiKey ? apiKey.slice(0, 8) + '...' : 'NOT FOUND');
-  const prompt = `You are an expert technical interviewer. Analyze the candidate's resume and job role, and generate exactly 5 highly technical, intermediate programming interview questions (including at least 2 that require code, algorithms, or problem-solving), and 1 behavioral question.\n\nMake the questions challenging and specifically reference the candidate's listed skills, technologies, and experience from the resume. Avoid generic questions.\n\nCandidate Name: ${candidateName}\nJob Role: ${jobRole}\nResume Text: ${resumeText}\n\nRespond with JSON in this format:\n{\n  "questions": [\n    "Technical Question 1...",\n    "Technical Question 2...",\n    "Technical Question 3...",\n    "Technical Question 4...",\n    "Technical Question 5...",\n    "Behavioral Question..."\n  ]\n}`;
+  const prompt = `You are an expert technical interviewer. Analyze the candidate's resume and job role, and generate exactly 5 highly technical, intermediate interview questions (including at least 2 that require code, algorithms, or problem-solving if the resume supports it), and 1 behavioral question.\n\nMake the questions challenging and specifically reference the candidate's listed skills, technologies, and experience from the resume. Avoid generic questions.\n\nCandidate Name: ${candidateName}\nJob Role: ${jobRole}\nResume Text: ${resumeText}\n\nRespond with JSON in this format:\n{\n  \"questions\": [\n    \"Technical Question 1...\",\n    \"Technical Question 2...\",\n    \"Technical Question 3...\",\n    \"Technical Question 4...\",\n    \"Technical Question 5...\",\n    \"Behavioral Question...\"\n  ]\n}\n\nIMPORTANT:\n- ONLY use skills, technologies, and experience that are explicitly present in the resume.\n- If the resume does not mention a technology (e.g., React, TypeScript, UI), do NOT ask about it.\n- If the job role is HR, only ask about HR, people management, and relevant HR topics IF those are present in the resume.\n- If the resume does not support the job role, ask only about what is present in the resume.\n- Do NOT make up skills, technologies, or experience.\n- Do NOT include any preamble, explanation, or system prompt in your response. Only return the questions array as specified.`;
   const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -118,9 +131,26 @@ async function geminiGenerateQuestions(candidateName: string, jobRole: string, r
   try {
     // Remove Markdown code block if present
     const cleaned = text.replace(/^```json|^```|```$/gm, '').trim();
-    const result = JSON.parse(cleaned);
+    // Remove any preamble or explanation before the questions array
+    const questionsStart = cleaned.indexOf('"questions"');
+    let jsonToParse = cleaned;
+    if (questionsStart > 0) {
+      jsonToParse = '{' + cleaned.slice(questionsStart - 1);
+    }
+    const result = JSON.parse(jsonToParse);
     if (!result.questions || !Array.isArray(result.questions) || result.questions.length < 2) {
       throw new Error('Invalid question format from Gemini');
+    }
+    // Filter out any questions that look like system/preamble text
+    result.questions = result.questions.filter((q: string) => !q.toLowerCase().includes('considering the role') && !q.toLowerCase().includes('let\'s assume') && !q.toLowerCase().includes('as an ai'));
+    // After parsing result.questions:
+    // Save questions to question bank
+    for (const q of result.questions) {
+      await storage.saveQuestionToBank({
+        role: jobRole,
+        questionText: q,
+        source: 'gemini',
+      });
     }
     return result as QuestionSet;
   } catch (e) {
@@ -135,6 +165,11 @@ export async function generateInterviewQuestions(
   resumeText: string,
   provider: 'openai' | 'gemini' = 'openai'
 ): Promise<QuestionSet> {
+  // Try to use question bank first
+  const bankQuestions = await getQuestionsFromBank(jobRole, 6);
+  if (bankQuestions.length === 6) {
+    return { questions: bankQuestions };
+  }
   console.log('Provider for question generation:', provider);
   if (provider === 'gemini') {
     try {

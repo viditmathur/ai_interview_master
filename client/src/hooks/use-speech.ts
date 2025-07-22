@@ -41,12 +41,12 @@ export function useSpeechRecognition() {
     recognition.interimResults = true;
     recognition.lang = 'en-US';
 
-    recognition.onstart = () => {
+    (recognition as any).onstart = () => {
       setIsListening(true);
       setError(null);
     };
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
+    (recognition as any).onresult = (event: SpeechRecognitionEvent) => {
       let finalTranscript = '';
       
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -61,12 +61,12 @@ export function useSpeechRecognition() {
       }
     };
 
-    recognition.onerror = (event: any) => {
+    (recognition as any).onerror = (event: any) => {
       setError(`Speech recognition error: ${event.error}`);
       setIsListening(false);
     };
 
-    recognition.onend = () => {
+    (recognition as any).onend = () => {
       setIsListening(false);
     };
 

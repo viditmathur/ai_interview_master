@@ -5,7 +5,7 @@ import { z } from "zod";
 export const candidates = pgTable("candidates", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  email: text("email").notNull(),
+  email: text("email").notNull().unique(),
   phone: text("phone").notNull(),
   jobRole: text("job_role").notNull(),
   resumeText: text("resume_text").notNull(),
@@ -59,6 +59,14 @@ export const settings = pgTable("settings", {
   value: text("value").notNull(),
 });
 
+export const questionBank = pgTable("question_bank", {
+  id: serial("id").primaryKey(),
+  role: text("role").notNull(),
+  questionText: text("question_text").notNull(),
+  source: text("source").notNull(), // e.g., 'gemini', 'manual'
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Insert schemas
 export const insertCandidateSchema = createInsertSchema(candidates).omit({
   id: true,
@@ -86,6 +94,11 @@ export const insertUserSchema = createInsertSchema(users).omit({
   createdAt: true,
 });
 
+export const insertQuestionBankSchema = createInsertSchema(questionBank).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type Candidate = typeof candidates.$inferSelect;
 export type InsertCandidate = z.infer<typeof insertCandidateSchema>;
@@ -103,6 +116,8 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 
 export type Setting = typeof settings.$inferSelect;
+export type QuestionBank = typeof questionBank.$inferSelect;
+export type InsertQuestionBank = Omit<QuestionBank, "id" | "createdAt">;
 
 // Question and evaluation types for API responses
 export interface QuestionSet {

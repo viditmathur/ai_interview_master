@@ -23,14 +23,13 @@ export default function LoginPage() {
         setError(data.message || "Login failed");
       } else {
         localStorage.setItem("user", JSON.stringify(data));
+        sessionStorage.clear();
         // Redirect to dashboard and scroll to last result if available
         const lastResultId = localStorage.getItem("lastResultId");
         if (data.role === "admin") {
           setLocation("/admin");
-        } else if (lastResultId) {
-          setLocation(`/dashboard?focus=${lastResultId}`);
         } else {
-          setLocation("/dashboard");
+          setLocation("/interview-upload");
         }
       }
     } catch (err) {

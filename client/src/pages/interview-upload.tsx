@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,32 @@ export default function InterviewUpload() {
     jobRole: ''
   });
   const [selectedFile, setSelectedFile] = useState<File | undefined>();
+
+  useEffect(() => {
+    // Redirect to login if not logged in
+    const userStr = localStorage.getItem('user');
+    if (!userStr) {
+      setLocation('/login');
+      return;
+    }
+    const user = JSON.parse(userStr);
+    // Autofill email with login email
+    setFormData(prev => ({ ...prev, email: user.email }));
+    // Block upload if interview is completed
+    const interviewResults = sessionStorage.getItem('interviewResults');
+    if (interviewResults) {
+      toast({
+        title: "Interview Already Completed",
+        description: "You have already completed your interview. You cannot upload another resume.",
+        variant: "destructive"
+      });
+      setTimeout(() => {
+        localStorage.removeItem('user');
+        sessionStorage.clear();
+        setLocation('/login');
+      }, 2000);
+    }
+  }, [setLocation, toast]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -70,7 +96,17 @@ export default function InterviewUpload() {
 
       setLocation('/interview');
       
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.response?.status === 403 || (error instanceof Error && error.message.includes('Only one interview'))) {
+        toast({
+          title: "Interview Already Completed",
+          description: "You have already completed your interview. You will be logged out.",
+          variant: "destructive"
+        });
+        localStorage.removeItem('user');
+        setTimeout(() => setLocation('/login'), 2000);
+        return;
+      }
       console.error('Error starting interview:', error);
       toast({
         title: "Error",
@@ -161,6 +197,7 @@ export default function InterviewUpload() {
                     value={formData.email}
                     onChange={(e) => handleInputChange('email', e.target.value)}
                     placeholder="john@example.com"
+                    readOnly
                   />
                 </div>
                 
@@ -178,6 +215,10 @@ export default function InterviewUpload() {
                       <SelectItem value="devops">DevOps Engineer</SelectItem>
                       <SelectItem value="ml">ML Engineer</SelectItem>
                       <SelectItem value="mobile">Mobile Developer</SelectItem>
+                      <SelectItem value="hr_manager">HR Manager</SelectItem>
+                      <SelectItem value="hr_executive">HR Executive</SelectItem>
+                      <SelectItem value="hrbp">HR Business Partner</SelectItem>
+                      <SelectItem value="recruiter">Recruiter</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

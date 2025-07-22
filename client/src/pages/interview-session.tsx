@@ -29,14 +29,78 @@ export default function InterviewSession() {
   const [transcript, setTranscript] = useState('');
   const recognitionRef = useRef<any>(null);
   const videoRef = useRef<HTMLDivElement>(null);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [timer, setTimer] = useState(180);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const [timerActive, setTimerActive] = useState(false);
+  const [questionLocked, setQuestionLocked] = useState(false);
+
+  // Remove timer start on question change
+  useEffect(() => {
+    setTimer(180);
+    setQuestionLocked(false);
+    setTimerActive(false);
+    if (timerRef.current) clearInterval(timerRef.current);
+  }, [interviewData?.currentQuestionIndex]);
+
+  // Start timer only when Start Answer is clicked
+  const startTimer = () => {
+    if (!timerActive && !questionLocked) {
+      setTimerActive(true);
+      timerRef.current = setInterval(() => {
+        setTimer((prev) => {
+          if (prev <= 1) {
+            clearInterval(timerRef.current!);
+            setTimerActive(false);
+            setQuestionLocked(true);
+            stopTranscription();
+            toast({
+              title: "Time's up!",
+              description: "You have reached the 3-minute limit for this question.",
+              variant: "destructive"
+            });
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+  };
+
+  // Stop timer when answer is submitted or transcription is stopped
+  const stopTimer = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setTimerActive(false);
+  };
+
+  // Reset transcript on question change
+  useEffect(() => {
+    setTranscript('');
+  }, [interviewData?.currentQuestionIndex]);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem('currentInterview');
-    if (stored) {
-      const data = JSON.parse(stored);
-      setInterviewData(data);
+    // Redirect to login if not logged in
+    const user = localStorage.getItem('user');
+    if (!user) {
+      setLocation('/login');
+      return;
     }
-  }, []);
+    // Redirect to upload resume if no interview in progress or interview is not in-progress
+    const stored = sessionStorage.getItem('currentInterview');
+    if (!stored) {
+      sessionStorage.clear();
+      setLocation('/interview-upload');
+      return;
+    }
+    const data = JSON.parse(stored);
+    // Optionally, fetch interview status from backend for even more robust check
+    if (data.status && data.status !== 'in-progress') {
+      sessionStorage.clear();
+      setLocation('/interview-upload');
+      return;
+    }
+    setInterviewData(data);
+  }, [setLocation]);
 
   const startAgora = async () => {
     if (!interviewData) return;
@@ -58,22 +122,37 @@ export default function InterviewSession() {
     await leaveAgoraChannel();
     setJoined(false);
     stopTranscription();
+    // Log out user and block further attempts
+    localStorage.removeItem('user');
+    sessionStorage.clear();
+    toast({
+      title: "You have left the interview.",
+      description: "You have been logged out.",
+      variant: "destructive"
+    });
+    setTimeout(() => setLocation('/login'), 1500);
   };
 
   const startTranscription = () => {
     if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) return;
+    startTimer();
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
     recognition.lang = 'en-US';
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.onresult = (event: any) => {
-      let finalTranscript = '';
+      let interimTranscript = '';
       for (let i = event.resultIndex; i < event.results.length; ++i) {
-        finalTranscript += event.results[i][0].transcript;
+        const transcriptPiece = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          interimTranscript += transcriptPiece + ' ';
+        }
       }
-      setTranscript(finalTranscript);
+      setTranscript(prev => prev + interimTranscript);
     };
+    recognition.onstart = () => setIsTranscribing(true);
+    recognition.onend = () => setIsTranscribing(false);
     recognition.start();
     recognitionRef.current = recognition;
   };
@@ -82,12 +161,15 @@ export default function InterviewSession() {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
       recognitionRef.current = null;
+      setIsTranscribing(false);
     }
+    stopTimer();
   };
 
   const handleAnswerSubmit = async () => {
     if (!interviewData) return;
     setIsSubmitting(true);
+    stopTimer();
     try {
       const response = await submitAnswer({
         interviewId: interviewData.interviewId,
@@ -103,6 +185,7 @@ export default function InterviewSession() {
       });
       setTranscript('');
       if (response.completed) {
+        sessionStorage.clear();
         sessionStorage.setItem('interviewResults', JSON.stringify({
           candidateId: interviewData.candidateId,
           interviewId: interviewData.interviewId,
@@ -123,7 +206,18 @@ export default function InterviewSession() {
         setInterviewData(updatedData);
         sessionStorage.setItem('currentInterview', JSON.stringify(updatedData));
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.response?.status === 403 || (error instanceof Error && error.message.includes('Only one interview'))) {
+        toast({
+          title: "Interview Already Completed",
+          description: "You have already completed your interview. You will be logged out.",
+          variant: "destructive"
+        });
+        localStorage.removeItem('user');
+        sessionStorage.clear();
+        setTimeout(() => setLocation('/login'), 2000);
+        return;
+      }
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to submit answer",
@@ -132,6 +226,43 @@ export default function InterviewSession() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Add navigation handlers for Prev/Next
+  const handlePrev = () => {
+    if (!interviewData) return;
+    if (interviewData.currentQuestionIndex > 0) {
+      const updatedData = {
+        ...interviewData,
+        currentQuestionIndex: interviewData.currentQuestionIndex - 1
+      };
+      setInterviewData(updatedData);
+      sessionStorage.setItem('currentInterview', JSON.stringify(updatedData));
+    }
+  };
+  const handleNext = () => {
+    if (!interviewData) return;
+    if (interviewData.currentQuestionIndex < interviewData.questions.length - 1) {
+      const updatedData = {
+        ...interviewData,
+        currentQuestionIndex: interviewData.currentQuestionIndex + 1
+      };
+      setInterviewData(updatedData);
+      sessionStorage.setItem('currentInterview', JSON.stringify(updatedData));
+    }
+  };
+
+  // Remove Ask Question, add Play Audio
+  const playAudio = () => {
+    if (!interviewData) return;
+    const question = interviewData.questions[interviewData.currentQuestionIndex];
+    const utterance = new window.SpeechSynthesisUtterance(question);
+    utterance.voice = window.speechSynthesis.getVoices().find(v => v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('ai')) || null;
+    utterance.rate = 1;
+    utterance.pitch = 1.1;
+    utterance.volume = 1;
+    utterance.lang = 'en-US';
+    window.speechSynthesis.speak(utterance);
   };
 
   if (!interviewData) {
@@ -168,6 +299,32 @@ export default function InterviewSession() {
               <div className="mb-4">
                 <b>Current Question:</b> {currentQuestion}
               </div>
+              <div className="mb-4 flex gap-2 items-center">
+                <span className={`font-mono text-lg ${timer <= 10 ? 'text-red-600' : 'text-gray-800'}`}>Time Left: {Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, '0')}</span>
+                <button
+                  className="px-4 py-2 rounded bg-blue-600 text-white border border-blue-700"
+                  onClick={playAudio}
+                  type="button"
+                >
+                  Play Audio
+                </button>
+              </div>
+              <div className="mb-4 flex gap-2 items-center">
+                <button
+                  className={`px-4 py-2 rounded ${isTranscribing || questionLocked ? 'bg-gray-300 text-gray-500' : 'bg-green-600 text-white hover:bg-green-700 cursor-pointer'}`}
+                  onClick={startTranscription}
+                  disabled={isTranscribing || questionLocked}
+                >
+                  Start Answer
+                </button>
+                <button
+                  className={`px-4 py-2 rounded ${!isTranscribing ? 'bg-gray-300 text-gray-500' : 'bg-yellow-600 text-white'}`}
+                  onClick={stopTranscription}
+                  disabled={!isTranscribing}
+                >
+                  Stop Answer
+                </button>
+              </div>
               <div className="mb-4">
                 <b>Transcribed Answer:</b>
                 <textarea
@@ -178,13 +335,29 @@ export default function InterviewSession() {
                   placeholder="Your answer will appear here..."
                 />
               </div>
-              <button
-                className="bg-green-600 text-white px-4 py-2 rounded"
-                onClick={handleAnswerSubmit}
-                disabled={isSubmitting || !transcript.trim()}
-              >
-                {isSubmitting ? 'Submitting...' : 'Submit Answer'}
-              </button>
+              <div className="flex gap-2 items-center justify-end mt-4">
+                <button
+                  className="px-4 py-2 rounded bg-gray-200 text-gray-700 border border-gray-300"
+                  onClick={handlePrev}
+                  disabled={interviewData.currentQuestionIndex === 0}
+                >
+                  Prev
+                </button>
+                <button
+                  className="bg-green-600 text-white px-4 py-2 rounded"
+                  onClick={handleAnswerSubmit}
+                  disabled={isSubmitting || !transcript.trim() || questionLocked}
+                >
+                  {isSubmitting ? 'Submitting...' : 'Submit Answer'}
+                </button>
+                <button
+                  className="px-4 py-2 rounded bg-gray-200 text-gray-700 border border-gray-300"
+                  onClick={handleNext}
+                  disabled={interviewData.currentQuestionIndex === interviewData.questions.length - 1}
+                >
+                  Next
+                </button>
+              </div>
             </>
           )}
         </div>

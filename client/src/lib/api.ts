@@ -35,25 +35,25 @@ export interface SubmitAnswerResponse {
   };
 }
 
-export async function startInterview(data: StartInterviewRequest): Promise<StartInterviewResponse> {
+export async function startInterview(data: any) {
   const formData = new FormData();
-  formData.append('name', data.name);
-  formData.append('email', data.email);
-  formData.append('phone', data.phone);
-  formData.append('jobRole', data.jobRole);
-  formData.append('resume', data.resume);
-
-  const response = await fetch('/api/interviews/start', {
-    method: 'POST',
-    body: formData,
+  Object.entries(data).forEach(([key, value]) => {
+    if (key === 'resume') {
+      formData.append('resume', value as File);
+    } else {
+      formData.append(key, value as string);
+    }
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Failed to start interview');
+  const res = await fetch('/api/interviews/start', {
+    method: 'POST',
+    body: formData
+  });
+  if (!res.ok) {
+    const error = new Error((await res.json()).message || 'Failed to start interview');
+    (error as any).response = { status: res.status };
+    throw error;
   }
-
-  return response.json();
+  return await res.json();
 }
 
 export async function submitAnswer(data: SubmitAnswerRequest): Promise<SubmitAnswerResponse> {

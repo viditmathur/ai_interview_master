@@ -53,9 +53,12 @@ export interface IStorage {
   // User operations
   createUser(user: InsertUser): Promise<User>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  findCandidatesByEmail(email: string): Promise<any[]>;
   // Settings operations
   getSetting(key: string): Promise<string | undefined>;
   setSetting(key: string, value: string): Promise<void>;
+  getQuestionsByRole(role: string): Promise<any[]>;
+  saveQuestionToBank(q: { role: string, questionText: string, source: string }): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -65,12 +68,14 @@ export class MemStorage implements IStorage {
   private evaluations: Map<number, Evaluation> = new Map();
   private users: Map<string, User> = new Map();
   private settings: Map<string, string> = new Map();
+  private questionBank: Map<number, { id: number, role: string, questionText: string, source: string, createdAt: Date }> = new Map();
   
   private candidateIdCounter = 1;
   private interviewIdCounter = 1;
   private answerIdCounter = 1;
   private evaluationIdCounter = 1;
   private userIdCounter = 1;
+  private questionBankIdCounter = 1;
 
   async createCandidate(candidate: InsertCandidate): Promise<Candidate> {
     const id = this.candidateIdCounter++;
@@ -210,6 +215,9 @@ export class MemStorage implements IStorage {
   async getUserByEmail(email: string): Promise<User | undefined> {
     return this.users.get(email);
   }
+  async findCandidatesByEmail(email: string) {
+    return Array.from(this.candidates.values()).filter((c) => c.email === email);
+  }
   async getSetting(key: string): Promise<string | undefined> {
     return this.settings.get(key);
   }
@@ -217,18 +225,26 @@ export class MemStorage implements IStorage {
     this.settings.set(key, value);
   }
 
+  async getQuestionsByRole(role: string) {
+    return Array.from(this.questionBank.values()).filter(q => q.role === role);
+  }
+  async saveQuestionToBank({ role, questionText, source }: { role: string, questionText: string, source: string }) {
+    const id = this.questionBankIdCounter++;
+    this.questionBank.set(id, { id, role, questionText, source, createdAt: new Date() });
+  }
+
   async deleteInterview(id: number): Promise<void> {
     this.interviews.delete(id);
   }
   async deleteAnswersByInterview(interviewId: number): Promise<void> {
-    for (const [id, answer] of this.answers.entries()) {
+    for (const [id, answer] of Array.from(this.answers.entries())) {
       if (answer.interviewId === interviewId) {
         this.answers.delete(id);
       }
     }
   }
   async deleteEvaluationByInterview(interviewId: number): Promise<void> {
-    for (const [id, evaluation] of this.evaluations.entries()) {
+    for (const [id, evaluation] of Array.from(this.evaluations.entries())) {
       if (evaluation.interviewId === interviewId) {
         this.evaluations.delete(id);
       }

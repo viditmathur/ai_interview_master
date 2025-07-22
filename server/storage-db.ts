@@ -16,7 +16,8 @@ import {
   users,
   type User,
   type InsertUser,
-  settings
+  settings,
+  questionBank
 } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
 import type { IStorage } from "./storage";
@@ -140,6 +141,9 @@ export class DatabaseStorage implements IStorage {
     const result = await db.select().from(users).where(eq(users.email, email));
     return result[0];
   }
+  async findCandidatesByEmail(email: string): Promise<Candidate[]> {
+    return await db.select().from(candidates).where(eq(candidates.email, email));
+  }
 
   async getSetting(key: string): Promise<string | undefined> {
     const result = await db.select().from(settings).where(eq(settings.key, key));
@@ -152,6 +156,13 @@ export class DatabaseStorage implements IStorage {
     } else {
       await db.insert(settings).values({ key, value });
     }
+  }
+
+  async getQuestionsByRole(role: string) {
+    return await db.select().from(questionBank).where(eq(questionBank.role, role));
+  }
+  async saveQuestionToBank({ role, questionText, source }: { role: string, questionText: string, source: string }) {
+    await db.insert(questionBank).values({ role, questionText, source });
   }
 
   async deleteInterview(id: number): Promise<void> {

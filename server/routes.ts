@@ -147,30 +147,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/interviews/start", upload.single('resume'), async (req: RequestWithFile, res) => {
     try {
       const { name, email, phone, jobRole } = startInterviewSchema.parse(req.body);
-      
-      if (!req.file) {
-        return res.status(400).json({ message: "Resume file is required" });
+      // Check for existing candidate by email
+      const candidatesWithEmail = await storage.findCandidatesByEmail(email);
+      let candidate;
+      if (candidatesWithEmail && candidatesWithEmail.length > 0) {
+        candidate = candidatesWithEmail[0];
+        const interviews = await storage.getInterviewsByCandidate(candidate.id);
+        if (interviews.some(i => i.status === 'completed')) {
+          return res.status(403).json({ message: "You have already completed your interview. Only one interview is allowed per user." });
+        }
+      } else {
+        if (!req.file) {
+          return res.status(400).json({ message: "Resume file is required" });
+        }
+        // Extract text from uploaded resume
+        const resumeText = await extractTextFromFile(req.file.buffer, req.file.mimetype, req.file.originalname);
+        // Create candidate
+        candidate = await storage.createCandidate({
+          name,
+          email,
+          phone,
+          jobRole,
+          resumeText
+        });
       }
-
-      // Extract text from uploaded resume
-      const resumeText = await extractTextFromFile(req.file.buffer, req.file.mimetype, req.file.originalname);
-
-      // Create candidate
-      const candidate = await storage.createCandidate({
-        name,
-        email, 
-        phone,
-        jobRole,
-        resumeText
-      });
-
       // Get global AI provider
       const rawProvider = await storage.getSetting("ai_provider");
       console.log('DB value for ai_provider:', rawProvider);
       const provider = (rawProvider || "openai") as 'openai' | 'gemini';
       // Generate interview questions
-      const questionSet = await generateInterviewQuestions(name, jobRole, resumeText, provider);
-
+      const questionSet = await generateInterviewQuestions(name, jobRole, candidate.resumeText, provider);
       // Create interview
       const interview = await storage.createInterview({
         candidateId: candidate.id,
@@ -178,14 +184,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         currentQuestionIndex: 0,
         status: "in-progress"
       });
-
       res.json({
         interviewId: interview.id,
         candidateId: candidate.id,
         questions: questionSet.questions,
         currentQuestion: questionSet.questions[0]
       });
-
     } catch (error) {
       console.error("Error starting interview:", error);
       if (error instanceof z.ZodError) {
