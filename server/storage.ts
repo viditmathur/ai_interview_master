@@ -45,6 +45,10 @@ export interface IStorage {
     rejected: number;
     avgScore: number;
   }>;
+  // Delete operations
+  deleteInterview(id: number): Promise<void>;
+  deleteAnswersByInterview(interviewId: number): Promise<void>;
+  deleteEvaluationByInterview(interviewId: number): Promise<void>;
 
   // User operations
   createUser(user: InsertUser): Promise<User>;
@@ -211,6 +215,24 @@ export class MemStorage implements IStorage {
   }
   async setSetting(key: string, value: string): Promise<void> {
     this.settings.set(key, value);
+  }
+
+  async deleteInterview(id: number): Promise<void> {
+    this.interviews.delete(id);
+  }
+  async deleteAnswersByInterview(interviewId: number): Promise<void> {
+    for (const [id, answer] of this.answers.entries()) {
+      if (answer.interviewId === interviewId) {
+        this.answers.delete(id);
+      }
+    }
+  }
+  async deleteEvaluationByInterview(interviewId: number): Promise<void> {
+    for (const [id, evaluation] of this.evaluations.entries()) {
+      if (evaluation.interviewId === interviewId) {
+        this.evaluations.delete(id);
+      }
+    }
   }
 }
 

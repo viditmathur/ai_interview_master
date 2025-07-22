@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Download, Eye, Trash, FolderOutput, Fan, Bot } from 'lucide-react';
-import { getAdminInterviews, getAdminStats } from '@/lib/api';
+import { getAdminInterviews, getAdminStats, deleteInterview, getInterviewResults } from '@/lib/api';
 import React, { useEffect, useState } from 'react';
 import { useLocation } from 'wouter';
 
@@ -93,6 +93,27 @@ export default function AdminDashboard() {
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
+  };
+
+  const [viewedInterview, setViewedInterview] = useState<any>(null);
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const handleDelete = async (id: number) => {
+    if (!window.confirm('Are you sure you want to delete this interview?')) return;
+    setDeletingId(id);
+    try {
+      await deleteInterview(id);
+      window.location.reload();
+    } catch (err) {
+      alert('Failed to delete interview');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleView = (id: number) => {
+    window.open(`/admin/interview/${id}`, '_blank');
   };
 
   if (statsLoading || interviewsLoading) {
@@ -235,13 +256,10 @@ export default function AdminDashboard() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-2">
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" onClick={() => handleView(interview.id)}>
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm">
-                            <Download className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" onClick={() => handleDelete(interview.id)} disabled={deletingId === interview.id}>
                             <Trash className="h-4 w-4" />
                           </Button>
                         </div>

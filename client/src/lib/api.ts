@@ -80,3 +80,17 @@ export async function getAdminStats() {
   const response = await apiRequest('GET', '/api/admin/stats');
   return response.json();
 }
+
+export async function deleteInterview(id: number) {
+  const response = await apiRequest('DELETE', `/api/admin/interviews/${id}`);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to delete interview');
+  }
+  return response.json();
+}
+
+export async function getInterviewResults(id: number) {
+  const response = await apiRequest('GET', `/api/interviews/${id}`);
+  return response.json();
+}

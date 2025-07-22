@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'wouter';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { VoiceRecorder } from '@/components/voice-recorder';
+import { joinAgoraChannel, leaveAgoraChannel } from '@/lib/agora';
 import { submitAnswer } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
@@ -25,6 +25,10 @@ export default function InterviewSession() {
   const [currentScore, setCurrentScore] = useState<number>(0);
   const [latestFeedback, setLatestFeedback] = useState<string>('');
   const [answeredQuestions, setAnsweredQuestions] = useState<number[]>([]);
+  const [joined, setJoined] = useState(false);
+  const [transcript, setTranscript] = useState('');
+  const recognitionRef = useRef<any>(null);
+  const videoRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const stored = sessionStorage.getItem('currentInterview');
@@ -32,48 +36,86 @@ export default function InterviewSession() {
       const data = JSON.parse(stored);
       setInterviewData(data);
     }
-    // else, do not redirect; show a message below
   }, []);
 
-  const handleAnswerSubmit = async (answerText: string) => {
+  const startAgora = async () => {
     if (!interviewData) return;
+    const channel = `interview_${interviewData.interviewId}`;
+    await joinAgoraChannel(channel);
+    setJoined(true);
+    // Attach local video to DOM
+    setTimeout(() => {
+      const videoTrack = (window as any).AgoraRTC?.localTracks?.find((t: any) => t.trackMediaType === 'video');
+      if (videoTrack && videoRef.current) {
+        videoTrack.play(videoRef.current);
+      }
+    }, 500);
+    // Start transcription
+    startTranscription();
+  };
 
+  const leaveAgora = async () => {
+    await leaveAgoraChannel();
+    setJoined(false);
+    stopTranscription();
+  };
+
+  const startTranscription = () => {
+    if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) return;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.onresult = (event: any) => {
+      let finalTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        finalTranscript += event.results[i][0].transcript;
+      }
+      setTranscript(finalTranscript);
+    };
+    recognition.start();
+    recognitionRef.current = recognition;
+  };
+
+  const stopTranscription = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+  };
+
+  const handleAnswerSubmit = async () => {
+    if (!interviewData) return;
     setIsSubmitting(true);
-    
     try {
       const response = await submitAnswer({
         interviewId: interviewData.interviewId,
         questionIndex: interviewData.currentQuestionIndex,
-        answerText
+        answerText: transcript
       });
-
       setCurrentScore(response.score);
       setLatestFeedback(response.feedback);
       setAnsweredQuestions(prev => [...prev, interviewData.currentQuestionIndex]);
-
       toast({
         title: "Answer Submitted",
         description: `Score: ${response.score}/10 - ${response.feedback}`
       });
-
+      setTranscript('');
       if (response.completed) {
-        // Store final results and navigate to dashboard
         sessionStorage.setItem('interviewResults', JSON.stringify({
           candidateId: interviewData.candidateId,
           interviewId: interviewData.interviewId,
           summary: response.summary
         }));
-        
         toast({
           title: "Interview Complete!",
           description: "Redirecting to your results dashboard..."
         });
-        
         setTimeout(() => {
           setLocation('/dashboard');
         }, 2000);
       } else {
-        // Move to next question
         const updatedData = {
           ...interviewData,
           currentQuestionIndex: response.questionIndex!
@@ -81,9 +123,7 @@ export default function InterviewSession() {
         setInterviewData(updatedData);
         sessionStorage.setItem('currentInterview', JSON.stringify(updatedData));
       }
-
     } catch (error) {
-      console.error('Error submitting answer:', error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to submit answer",
@@ -94,20 +134,8 @@ export default function InterviewSession() {
     }
   };
 
-  const handleSkip = () => {
-    if (!interviewData) return;
-    
-    handleAnswerSubmit("I would like to skip this question.");
-  };
-
   if (!interviewData) {
-    return <div className="flex flex-col items-center justify-center min-h-screen">
-      <div className="bg-white p-8 rounded shadow-md w-96 text-center">
-        <h2 className="text-2xl font-bold mb-4">No Interview In Progress</h2>
-        <p className="mb-4">Please start an interview by uploading your resume first.</p>
-        <a href="/dashboard" className="text-blue-600 underline">Go to Dashboard</a>
-      </div>
-    </div>;
+    return <div>Loading...</div>;
   }
 
   const currentQuestion = interviewData.questions[interviewData.currentQuestionIndex];
@@ -116,7 +144,6 @@ export default function InterviewSession() {
 
   return (
     <div className="max-w-5xl mx-auto">
-      {/* Progress Bar */}
       <div className="mb-8">
         <div className="flex justify-between items-center mb-2">
           <h2 className="text-2xl font-bold text-gray-900">AI Interview in Progress</h2>
@@ -126,21 +153,42 @@ export default function InterviewSession() {
         </div>
         <Progress value={progress} className="w-full h-2" />
       </div>
-
       <div className="grid lg:grid-cols-3 gap-8">
-        {/* Interview Interface */}
         <div className="lg:col-span-2">
-          <VoiceRecorder
-            question={currentQuestion}
-            onAnswerSubmit={handleAnswerSubmit}
-            onSkip={handleSkip}
-            isSubmitting={isSubmitting}
-          />
+          {!joined ? (
+            <button className="bg-blue-600 text-white px-4 py-2 rounded" onClick={startAgora}>
+              Join Video Interview
+            </button>
+          ) : (
+            <>
+              <div ref={videoRef} className="w-full h-64 bg-black rounded mb-4"></div>
+              <button className="bg-red-500 text-white px-4 py-2 rounded mb-4" onClick={leaveAgora}>
+                Leave Call
+              </button>
+              <div className="mb-4">
+                <b>Current Question:</b> {currentQuestion}
+              </div>
+              <div className="mb-4">
+                <b>Transcribed Answer:</b>
+                <textarea
+                  className="w-full border rounded p-2 mt-2"
+                  rows={3}
+                  value={transcript}
+                  onChange={e => setTranscript(e.target.value)}
+                  placeholder="Your answer will appear here..."
+                />
+              </div>
+              <button
+                className="bg-green-600 text-white px-4 py-2 rounded"
+                onClick={handleAnswerSubmit}
+                disabled={isSubmitting || !transcript.trim()}
+              >
+                {isSubmitting ? 'Submitting...' : 'Submit Answer'}
+              </button>
+            </>
+          )}
         </div>
-
-        {/* Interview Progress Sidebar */}
         <div className="space-y-6">
-          {/* Candidate Info */}
           <Card>
             <CardContent className="p-6">
               <h4 className="font-medium text-gray-900 mb-4">Candidate Information</h4>
@@ -160,8 +208,6 @@ export default function InterviewSession() {
               </div>
             </CardContent>
           </Card>
-
-          {/* Questions Progress */}
           <Card>
             <CardContent className="p-6">
               <h4 className="font-medium text-gray-900 mb-4">Questions Progress</h4>
@@ -170,7 +216,6 @@ export default function InterviewSession() {
                   const isCurrent = index === interviewData.currentQuestionIndex;
                   const isAnswered = answeredQuestions.includes(index);
                   const isPending = index > interviewData.currentQuestionIndex;
-                  
                   return (
                     <div
                       key={index}
@@ -218,8 +263,6 @@ export default function InterviewSession() {
               </div>
             </CardContent>
           </Card>
-
-          {/* Live Scoring */}
           <Card>
             <CardContent className="p-6">
               <h4 className="font-medium text-gray-900 mb-4">Live Evaluation</h4>

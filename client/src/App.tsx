@@ -12,6 +12,7 @@ import NotFound from "@/pages/not-found";
 import SignupPage from "@/pages/signup";
 import LoginPage from "@/pages/login";
 import React from "react";
+import AdminInterviewResults from "@/pages/admin-interview-results";
 
 function LandingRedirect() {
   const [location, setLocation] = useLocation();
@@ -35,14 +36,33 @@ function Router() {
       <Route path="/signup" component={SignupPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/interview-upload" component={InterviewUpload} />
+      <Route path="/admin/interview/:id" component={AdminInterviewResults} />
       <Route component={NotFound} />
     </Switch>
   );
 }
 
 function Navigation() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const user = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user') || 'null') : null;
+  const isLoginPage = location === "/" || location === "/login";
+
+  if (isLoginPage) {
+    return (
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-center items-center h-16">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+                <span className="text-white text-2xl font-bold">AI</span>
+              </div>
+              <h1 className="font-bold text-xl text-gray-900">FirstRoundAI</h1>
+            </div>
+          </div>
+        </div>
+      </header>
+    );
+  }
 
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -55,56 +75,19 @@ function Navigation() {
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-              <Brain className="h-6 w-6 text-white" />
+              <span className="text-white text-2xl font-bold">AI</span>
             </div>
-            <div>
-              <h1 className="font-bold text-xl text-gray-900">AI Interview</h1>
-              <p className="text-xs text-gray-500">Smart Recruitment Platform</p>
-            </div>
+            <h1 className="font-bold text-xl text-gray-900">FirstRoundAI</h1>
           </div>
           <nav className="hidden md:flex space-x-8">
-            <a 
-              href="/" 
-              className="text-primary border-b-2 border-primary pb-4 font-medium flex items-center"
-            >
-              <i className="fas fa-upload mr-2"></i>Upload Resume
-            </a>
-            <a 
-              href="/interview" 
-              className="text-gray-500 hover:text-gray-700 pb-4 font-medium flex items-center"
-            >
-              <Mic className="h-4 w-4 mr-2" />Interview
-            </a>
-            <a 
-              href="/dashboard" 
-              className="text-gray-500 hover:text-gray-700 pb-4 font-medium flex items-center"
-            >
-              <BarChart3 className="h-4 w-4 mr-2" />Dashboard
-            </a>
-            <a 
-              href="/admin" 
-              className="text-gray-500 hover:text-gray-700 pb-4 font-medium flex items-center"
-            >
-              <Settings className="h-4 w-4 mr-2" />Admin
-            </a>
-          </nav>
-          <div className="flex items-center space-x-4">
-            {user && (
-              <button
-                onClick={handleLogout}
-                className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
-              >
-                Logout
-              </button>
+            <a href="/" className="text-primary border-b-2 border-primary pb-4 font-medium flex items-center">Home</a>
+            <a href="/interview" className="text-gray-500 hover:text-gray-700 pb-4 font-medium flex items-center">Interview</a>
+            <a href="/dashboard" className="text-gray-500 hover:text-gray-700 pb-4 font-medium flex items-center">Dashboard</a>
+            {user && user.role === 'admin' && (
+              <a href="/admin" className="text-gray-500 hover:text-gray-700 pb-4 font-medium flex items-center">Admin Console</a>
             )}
-            <div className="hidden sm:flex items-center space-x-2 text-sm text-gray-600">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span>AI Ready</span>
-            </div>
-            <button className="p-2 text-gray-400 hover:text-gray-600">
-              <Bell className="h-5 w-5" />
-            </button>
-          </div>
+            <button onClick={handleLogout} className="ml-4 bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">Logout</button>
+          </nav>
         </div>
       </div>
     </header>
@@ -137,16 +120,16 @@ function Footer() {
 }
 
 function App() {
+  const [location] = useLocation();
+  const isLoginPage = location === "/" || location === "/login";
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <div className="min-h-screen bg-gray-50">
-          <Navigation />
-          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <Router />
-          </main>
-          <Footer />
-        </div>
+        {!isLoginPage && <Navigation />}
+        <main>
+          <Router />
+        </main>
+        {!isLoginPage && <Footer />}
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

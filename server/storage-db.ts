@@ -153,4 +153,14 @@ export class DatabaseStorage implements IStorage {
       await db.insert(settings).values({ key, value });
     }
   }
+
+  async deleteInterview(id: number): Promise<void> {
+    await db.delete(interviews).where(eq(interviews.id, id));
+  }
+  async deleteAnswersByInterview(interviewId: number): Promise<void> {
+    await db.delete(answers).where(eq(answers.interviewId, interviewId));
+  }
+  async deleteEvaluationByInterview(interviewId: number): Promise<void> {
+    await db.delete(evaluations).where(eq(evaluations.interviewId, interviewId));
+  }
 }

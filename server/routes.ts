@@ -6,6 +6,8 @@ import { storage } from "./storage";
 import { generateInterviewQuestions, evaluateAnswer, generateFinalSummary } from "./services/openai";
 import { insertCandidateSchema, insertAnswerSchema, insertUserSchema } from "@shared/schema";
 import { z } from "zod";
+import pdfParse from 'pdf-parse';
+import { RtcTokenBuilder } from 'agora-access-token';
 
 interface RequestWithFile extends Request {
   file?: Express.Multer.File;
@@ -26,6 +28,11 @@ async function extractTextFromFile(buffer: Buffer, mimetype: string, filename: s
   try {
     if (mimetype === 'text/plain') {
       return buffer.toString('utf-8');
+    }
+    if (mimetype === 'application/pdf') {
+      const pdfParse = (await import('pdf-parse')).default;
+      const data = await pdfParse(buffer);
+      return data.text;
     }
     
     // For other file types, create a sample resume text based on common patterns
@@ -352,6 +359,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin: Delete interview
+  app.delete("/api/admin/interviews/:id", async (req, res) => {
+    const interviewId = parseInt(req.params.id);
+    try {
+      // Delete answers
+      await storage.deleteAnswersByInterview(interviewId);
+      // Delete evaluation
+      await storage.deleteEvaluationByInterview(interviewId);
+      // Delete interview
+      await storage.deleteInterview(interviewId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting interview:", error);
+      res.status(500).json({ message: "Failed to delete interview" });
+    }
+  });
+
   // Admin: Get stats
   app.get("/api/admin/stats", async (req, res) => {
     try {
@@ -391,6 +415,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('[Admin] Error saving ai_provider:', err);
       res.status(500).json({ message: "Failed to save provider" });
     }
+  });
+
+  // Agora token endpoint
+  app.post('/api/agora/token', (req, res) => {
+    const { channel, uid } = req.body;
+    const appID = process.env.AGORA_APP_ID;
+    const appCertificate = process.env.AGORA_APP_CERTIFICATE;
+    if (!appID || !appCertificate) {
+      return res.status(500).json({ message: 'Agora credentials not set' });
+    }
+    const role = 1; // 1 = PUBLISHER
+    const expireTime = 3600; // 1 hour
+    const token = RtcTokenBuilder.buildTokenWithUid(
+      appID,
+      appCertificate,
+      channel,
+      Number(uid) || 0,
+      role,
+      Math.floor(Date.now() / 1000) + expireTime
+    );
+    res.json({ token });
   });
 
   const httpServer = createServer(app);
