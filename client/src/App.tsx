@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -9,20 +9,46 @@ import InterviewSession from "@/pages/interview-session";
 import CandidateDashboard from "@/pages/candidate-dashboard";
 import AdminDashboard from "@/pages/admin-dashboard";
 import NotFound from "@/pages/not-found";
+import SignupPage from "@/pages/signup";
+import LoginPage from "@/pages/login";
+import React from "react";
+
+function LandingRedirect() {
+  const [location, setLocation] = useLocation();
+  React.useEffect(() => {
+    const user = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user') || 'null') : null;
+    if (user) {
+      setLocation('/interview-upload');
+    }
+    // else, stay on login page
+  }, [setLocation]);
+  return <LoginPage />;
+}
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={InterviewUpload} />
+      <Route path="/" component={LandingRedirect} />
       <Route path="/interview" component={InterviewSession} />
       <Route path="/dashboard" component={CandidateDashboard} />
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/signup" component={SignupPage} />
+      <Route path="/login" component={LoginPage} />
+      <Route path="/interview-upload" component={InterviewUpload} />
       <Route component={NotFound} />
     </Switch>
   );
 }
 
 function Navigation() {
+  const [, setLocation] = useLocation();
+  const user = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user') || 'null') : null;
+
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    setLocation('/');
+  };
+
   return (
     <header className="bg-white shadow-sm border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -63,6 +89,14 @@ function Navigation() {
             </a>
           </nav>
           <div className="flex items-center space-x-4">
+            {user && (
+              <button
+                onClick={handleLogout}
+                className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+              >
+                Logout
+              </button>
+            )}
             <div className="hidden sm:flex items-center space-x-2 text-sm text-gray-600">
               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
               <span>AI Ready</span>

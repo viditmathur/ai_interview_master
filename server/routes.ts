@@ -1,14 +1,15 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
+import bcrypt from "bcryptjs";
+import { storage } from "./storage";
+import { generateInterviewQuestions, evaluateAnswer, generateFinalSummary } from "./services/openai";
+import { insertCandidateSchema, insertAnswerSchema, insertUserSchema } from "@shared/schema";
+import { z } from "zod";
 
 interface RequestWithFile extends Request {
   file?: Express.Multer.File;
 }
-import { storage } from "./storage";
-import { generateInterviewQuestions, evaluateAnswer, generateFinalSummary } from "./services/openai";
-import { insertCandidateSchema, insertAnswerSchema } from "@shared/schema";
-import { z } from "zod";
 
 // Configure multer for file uploads
 const upload = multer({
@@ -91,6 +92,49 @@ const submitAnswerSchema = z.object({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Seed default admin user if not present
+  (async () => {
+    const adminEmail = "admin@admin.com";
+    const adminPassword = "admin";
+    const existingAdmin = await storage.getUserByEmail(adminEmail);
+    if (!existingAdmin) {
+      const hashed = await bcrypt.hash(adminPassword, 10);
+      await storage.createUser({
+        email: adminEmail,
+        password: hashed,
+        role: "admin"
+      });
+      console.log("Seeded default admin user");
+    }
+  })();
+
+  // Signup endpoint
+  app.post("/api/auth/signup", async (req, res) => {
+    try {
+      const { email, password } = insertUserSchema.pick({ email: true, password: true }).parse(req.body);
+      const existing = await storage.getUserByEmail(email);
+      if (existing) return res.status(400).json({ message: "Email already registered" });
+      const hashed = await bcrypt.hash(password, 10);
+      const user = await storage.createUser({ email, password: hashed, role: "candidate" });
+      res.json({ id: user.id, email: user.email, role: user.role });
+    } catch (error) {
+      res.status(400).json({ message: "Invalid signup data" });
+    }
+  });
+
+  // Login endpoint
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { email, password } = insertUserSchema.pick({ email: true, password: true }).parse(req.body);
+      const user = await storage.getUserByEmail(email);
+      if (!user) return res.status(401).json({ message: "Invalid email or password" });
+      const valid = await bcrypt.compare(password, user.password);
+      if (!valid) return res.status(401).json({ message: "Invalid email or password" });
+      res.json({ id: user.id, email: user.email, role: user.role });
+    } catch (error) {
+      res.status(400).json({ message: "Invalid login data" });
+    }
+  });
   
   // Start interview with resume upload
   app.post("/api/interviews/start", upload.single('resume'), async (req: RequestWithFile, res) => {
@@ -113,8 +157,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         resumeText
       });
 
+      // Get global AI provider
+      const rawProvider = await storage.getSetting("ai_provider");
+      console.log('DB value for ai_provider:', rawProvider);
+      const provider = (rawProvider || "openai") as 'openai' | 'gemini';
       // Generate interview questions
-      const questionSet = await generateInterviewQuestions(name, jobRole, resumeText);
+      const questionSet = await generateInterviewQuestions(name, jobRole, resumeText, provider);
 
       // Create interview
       const interview = await storage.createInterview({
@@ -162,8 +210,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid question index" });
       }
 
+      // Get global AI provider for evaluation
+      const rawProvider = await storage.getSetting("ai_provider");
+      const provider = (rawProvider || "openai") as 'openai' | 'gemini';
+
       // Evaluate the answer
-      const evaluation = await evaluateAnswer(questionText, answerText, candidate.jobRole);
+      const evaluation = await evaluateAnswer(questionText, answerText, candidate.jobRole, provider);
 
       // Save the answer
       await storage.createAnswer({
@@ -308,6 +360,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error getting admin stats:", error);
       res.status(500).json({ message: "Failed to get stats" });
+    }
+  });
+
+  // Admin: Get AI provider
+  app.get("/api/admin/ai-provider", async (_req, res) => {
+    const provider = await storage.getSetting("ai_provider");
+    res.json({ provider: provider || "openai" });
+  });
+
+  // Admin: Set AI provider
+  app.post("/api/admin/ai-provider", async (req, res) => {
+    // Simple backend protection: check for admin role in a custom header (for demo; replace with real auth in production)
+    const userRole = req.headers['x-user-role'];
+    if (userRole !== 'admin') {
+      console.log('[Admin] Unauthorized attempt to set AI provider by role:', userRole);
+      return res.status(403).json({ message: 'Forbidden: Admins only' });
+    }
+    const { provider } = req.body;
+    console.log('[Admin] Set AI provider called with:', provider);
+    if (!provider || !["openai", "gemini"].includes(provider)) {
+      console.log('[Admin] Invalid provider:', provider);
+      return res.status(400).json({ message: "Invalid provider" });
+    }
+    try {
+      await storage.setSetting("ai_provider", provider);
+      console.log('[Admin] Saved ai_provider to settings:', provider);
+      res.json({ provider });
+    } catch (err) {
+      console.error('[Admin] Error saving ai_provider:', err);
+      res.status(500).json({ message: "Failed to save provider" });
     }
   });
 

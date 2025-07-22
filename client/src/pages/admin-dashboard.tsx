@@ -5,8 +5,19 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Download, Eye, Trash, FolderOutput, Fan, Bot } from 'lucide-react';
 import { getAdminInterviews, getAdminStats } from '@/lib/api';
+import React, { useEffect, useState } from 'react';
+import { useLocation } from 'wouter';
 
 export default function AdminDashboard() {
+  const [, setLocation] = useLocation();
+  React.useEffect(() => {
+    const user = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user') || 'null') : null;
+    if (!user || user.role !== 'admin') {
+      alert("You don't have admin rights.");
+      setLocation('/dashboard');
+    }
+  }, [setLocation]);
+
   const { data: interviews = [], isLoading: interviewsLoading } = useQuery({
     queryKey: ['/api/admin/interviews'],
     queryFn: getAdminInterviews,
@@ -16,6 +27,50 @@ export default function AdminDashboard() {
     queryKey: ['/api/admin/stats'],
     queryFn: getAdminStats,
   });
+
+  // AI Provider State
+  const [aiProvider, setAIProvider] = useState<'openai' | 'gemini'>('openai');
+  const [providerLoading, setProviderLoading] = useState(true);
+  const [providerSaving, setProviderSaving] = useState(false);
+  const [providerError, setProviderError] = useState('');
+
+  useEffect(() => {
+    setProviderLoading(true);
+    fetch('/api/admin/ai-provider')
+      .then(res => res.json())
+      .then(data => {
+        setAIProvider(data.provider);
+        setProviderLoading(false);
+      })
+      .catch(() => {
+        setProviderError('Failed to load AI provider');
+        setProviderLoading(false);
+      });
+  }, []);
+
+  const handleSystemAIModelChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const provider = e.target.value as 'openai' | 'gemini';
+    setAIProvider(provider);
+    setProviderSaving(true);
+    setProviderError('');
+    try {
+      const res = await fetch('/api/admin/ai-provider', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-role': 'admin',
+        },
+        body: JSON.stringify({ provider })
+      });
+      if (!res.ok) {
+        setProviderError('Failed to save AI provider');
+      }
+    } catch {
+      setProviderError('Failed to save AI provider');
+    } finally {
+      setProviderSaving(false);
+    }
+  };
 
   const getRecommendationColor = (rec: string) => {
     switch (rec) {
@@ -217,11 +272,19 @@ export default function AdminDashboard() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">AI Model</label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm">
-                  <option value="gpt-4o" selected>GPT-4o</option>
-                  <option value="gpt-3.5">GPT-3.5 Turbo</option>
-                  <option value="claude">Claude 3</option>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                  value={aiProvider}
+                  onChange={handleSystemAIModelChange}
+                  disabled={providerLoading || providerSaving}
+                >
+                  <option value="openai">OpenAI</option>
+                  <option value="gemini">Gemini</option>
                 </select>
+                {providerError && <span className="text-red-500 ml-2">{providerError}</span>}
+                <div className="text-xs text-gray-500 mt-2">
+                  Select which AI provider to use for question generation. This setting is global.
+                </div>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-700">Voice Recognition</span>

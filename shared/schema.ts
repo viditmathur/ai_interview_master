@@ -45,6 +45,20 @@ export const evaluations = pgTable("evaluations", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  password: text("password").notNull(), // hashed password
+  role: text("role").notNull(), // 'admin' or 'candidate'
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const settings = pgTable("settings", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  value: text("value").notNull(),
+});
+
 // Insert schemas
 export const insertCandidateSchema = createInsertSchema(candidates).omit({
   id: true,
@@ -67,6 +81,11 @@ export const insertEvaluationSchema = createInsertSchema(evaluations).omit({
   createdAt: true,
 });
 
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type Candidate = typeof candidates.$inferSelect;
 export type InsertCandidate = z.infer<typeof insertCandidateSchema>;
@@ -79,6 +98,11 @@ export type InsertAnswer = z.infer<typeof insertAnswerSchema>;
 
 export type Evaluation = typeof evaluations.$inferSelect;
 export type InsertEvaluation = z.infer<typeof insertEvaluationSchema>;
+
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+
+export type Setting = typeof settings.$inferSelect;
 
 // Question and evaluation types for API responses
 export interface QuestionSet {

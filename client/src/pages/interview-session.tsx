@@ -31,10 +31,9 @@ export default function InterviewSession() {
     if (stored) {
       const data = JSON.parse(stored);
       setInterviewData(data);
-    } else {
-      setLocation('/');
     }
-  }, [setLocation]);
+    // else, do not redirect; show a message below
+  }, []);
 
   const handleAnswerSubmit = async (answerText: string) => {
     if (!interviewData) return;
@@ -102,7 +101,13 @@ export default function InterviewSession() {
   };
 
   if (!interviewData) {
-    return <div>Loading...</div>;
+    return <div className="flex flex-col items-center justify-center min-h-screen">
+      <div className="bg-white p-8 rounded shadow-md w-96 text-center">
+        <h2 className="text-2xl font-bold mb-4">No Interview In Progress</h2>
+        <p className="mb-4">Please start an interview by uploading your resume first.</p>
+        <a href="/dashboard" className="text-blue-600 underline">Go to Dashboard</a>
+      </div>
+    </div>;
   }
 
   const currentQuestion = interviewData.questions[interviewData.currentQuestionIndex];

@@ -1,5 +1,5 @@
-import { drizzle } from "drizzle-orm/neon-http";
-import { neon } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import { 
   candidates, 
   interviews, 
@@ -12,12 +12,16 @@ import {
   type Answer,
   type InsertAnswer,
   type Evaluation,
-  type InsertEvaluation
+  type InsertEvaluation,
+  users,
+  type User,
+  type InsertUser,
+  settings
 } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
 import type { IStorage } from "./storage";
 
-const sql = neon(process.env.DATABASE_URL!);
+const sql = postgres(process.env.DATABASE_URL!);
 const db = drizzle(sql);
 
 export class DatabaseStorage implements IStorage {
@@ -126,5 +130,27 @@ export class DatabaseStorage implements IStorage {
     const avgScore = total > 0 ? evalResults.reduce((sum, e) => sum + e.overallScore, 0) / total : 0;
 
     return { total, recommended, maybe, rejected, avgScore: Math.round(avgScore * 10) / 10 };
+  }
+
+  async createUser(user: InsertUser): Promise<User> {
+    const [result] = await db.insert(users).values(user).returning();
+    return result;
+  }
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.email, email));
+    return result[0];
+  }
+
+  async getSetting(key: string): Promise<string | undefined> {
+    const result = await db.select().from(settings).where(eq(settings.key, key));
+    return result[0]?.value;
+  }
+  async setSetting(key: string, value: string): Promise<void> {
+    const existing = await db.select().from(settings).where(eq(settings.key, key));
+    if (existing[0]) {
+      await db.update(settings).set({ value }).where(eq(settings.key, key));
+    } else {
+      await db.insert(settings).values({ key, value });
+    }
   }
 }

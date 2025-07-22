@@ -10,7 +10,10 @@ import {
   type Answer,
   type InsertAnswer,
   type Evaluation,
-  type InsertEvaluation
+  type InsertEvaluation,
+  users,
+  type User,
+  type InsertUser
 } from "@shared/schema";
 
 export interface IStorage {
@@ -42,6 +45,13 @@ export interface IStorage {
     rejected: number;
     avgScore: number;
   }>;
+
+  // User operations
+  createUser(user: InsertUser): Promise<User>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  // Settings operations
+  getSetting(key: string): Promise<string | undefined>;
+  setSetting(key: string, value: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -49,11 +59,14 @@ export class MemStorage implements IStorage {
   private interviews: Map<number, Interview> = new Map();
   private answers: Map<number, Answer> = new Map();
   private evaluations: Map<number, Evaluation> = new Map();
+  private users: Map<string, User> = new Map();
+  private settings: Map<string, string> = new Map();
   
   private candidateIdCounter = 1;
   private interviewIdCounter = 1;
   private answerIdCounter = 1;
   private evaluationIdCounter = 1;
+  private userIdCounter = 1;
 
   async createCandidate(candidate: InsertCandidate): Promise<Candidate> {
     const id = this.candidateIdCounter++;
@@ -178,6 +191,26 @@ export class MemStorage implements IStorage {
     const avgScore = total > 0 ? evaluations.reduce((sum, e) => sum + e.overallScore, 0) / total : 0;
 
     return { total, recommended, maybe, rejected, avgScore: Math.round(avgScore * 10) / 10 };
+  }
+
+  async createUser(user: InsertUser): Promise<User> {
+    const id = this.userIdCounter++;
+    const newUser: User = {
+      ...user,
+      id,
+      createdAt: new Date(),
+    };
+    this.users.set(user.email, newUser);
+    return newUser;
+  }
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    return this.users.get(email);
+  }
+  async getSetting(key: string): Promise<string | undefined> {
+    return this.settings.get(key);
+  }
+  async setSetting(key: string, value: string): Promise<void> {
+    this.settings.set(key, value);
   }
 }
 
