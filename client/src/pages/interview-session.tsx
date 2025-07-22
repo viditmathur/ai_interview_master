@@ -328,7 +328,7 @@ export default function InterviewSession() {
               <div className="mb-4">
                 <b>Transcribed Answer:</b>
                 <textarea
-                  className="w-full border rounded p-2 mt-2"
+                  className="w-full rounded p-2 mt-2"
                   rows={3}
                   value={transcript}
                   onChange={e => setTranscript(e.target.value)}
@@ -337,7 +337,7 @@ export default function InterviewSession() {
               </div>
               <div className="flex gap-2 items-center justify-end mt-4">
                 <button
-                  className="px-4 py-2 rounded bg-gray-200 text-gray-700 border border-gray-300"
+                  className="px-4 py-2 rounded bg-gray-200 text-gray-700"
                   onClick={handlePrev}
                   disabled={interviewData.currentQuestionIndex === 0}
                 >
@@ -351,7 +351,7 @@ export default function InterviewSession() {
                   {isSubmitting ? 'Submitting...' : 'Submit Answer'}
                 </button>
                 <button
-                  className="px-4 py-2 rounded bg-gray-200 text-gray-700 border border-gray-300"
+                  className="px-4 py-2 rounded bg-gray-200 text-gray-700"
                   onClick={handleNext}
                   disabled={interviewData.currentQuestionIndex === interviewData.questions.length - 1}
                 >
@@ -393,7 +393,7 @@ export default function InterviewSession() {
                     <div
                       key={index}
                       className={`flex items-center space-x-3 p-3 rounded-lg ${
-                        isCurrent ? 'bg-primary bg-opacity-10 border border-primary border-opacity-20' : ''
+                        isCurrent ? 'bg-primary bg-opacity-10' : ''
                       }`}
                     >
                       <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${

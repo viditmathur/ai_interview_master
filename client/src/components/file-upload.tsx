@@ -104,10 +104,10 @@ export function FileUpload({ onFileSelect, selectedFile, onFileRemove }: FileUpl
     <Card>
       <CardContent className="p-6">
         <div
-          className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+          className={`rounded-lg p-8 text-center transition-colors ${
             isDragOver 
-              ? 'border-primary bg-primary/5' 
-              : 'border-gray-300 hover:border-primary'
+              ? 'bg-primary/5' 
+              : 'hover:border-primary'
           }`}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}

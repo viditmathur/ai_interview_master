@@ -3,7 +3,7 @@ import { Info, Zap } from 'lucide-react';
 
 export function AIStatusBanner() {
   return (
-    <Alert className="mb-6 bg-blue-50 border-blue-200">
+    <Alert className="mb-6 bg-blue-50">
       <Info className="h-4 w-4 text-blue-600" />
       <AlertDescription className="text-blue-700">
         <div className="flex items-center space-x-2">

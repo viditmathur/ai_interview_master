@@ -140,7 +140,7 @@ export function VoiceRecorder({ question, onAnswerSubmit, onSkip, isSubmitting }
         </div>
 
         {/* Answer Recording Interface */}
-        <div className="border-t pt-8">
+        <div className="pt-8">
           <h4 className="font-medium text-gray-900 mb-4">Your Answer</h4>
           
           {/* Voice Recording Controls */}
@@ -175,7 +175,7 @@ export function VoiceRecorder({ question, onAnswerSubmit, onSkip, isSubmitting }
 
           {/* Speech Error Display */}
           {speechError && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+            <div className="bg-red-50 rounded-lg p-3 mb-4">
               <p className="text-sm text-red-600">{speechError}</p>
             </div>
           )}

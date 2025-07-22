@@ -169,7 +169,7 @@ export default function CandidateDashboard() {
           <CardContent>
             <div className="space-y-4">
               {answers.map((answer, index) => (
-                <div key={answer.id} className="border border-gray-200 rounded-lg p-4">
+                <div key={answer.id} className="rounded-lg p-4">
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex-1">
                       <h4 className="font-medium text-gray-900 text-sm">
