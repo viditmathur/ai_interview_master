@@ -49,6 +49,7 @@ export interface IStorage {
   deleteInterview(id: number): Promise<void>;
   deleteAnswersByInterview(interviewId: number): Promise<void>;
   deleteEvaluationByInterview(interviewId: number): Promise<void>;
+  deleteCandidate(id: number): Promise<void>;
 
   // User operations
   createUser(user: InsertUser): Promise<User>;
@@ -249,6 +250,9 @@ export class MemStorage implements IStorage {
         this.evaluations.delete(id);
       }
     }
+  }
+  async deleteCandidate(id: number): Promise<void> {
+    this.candidates.delete(id);
   }
 }
 

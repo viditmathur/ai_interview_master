@@ -90,6 +90,15 @@ export async function deleteInterview(id: number) {
   return response.json();
 }
 
+export async function deleteCandidate(id: number) {
+  const response = await apiRequest('DELETE', `/api/admin/candidates/${id}`);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to delete candidate');
+  }
+  return response.json();
+}
+
 export async function getInterviewResults(id: number) {
   const response = await apiRequest('GET', `/api/interviews/${id}`);
   return response.json();

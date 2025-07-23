@@ -21,6 +21,7 @@ export default function InterviewUpload() {
     jobRole: ''
   });
   const [selectedFile, setSelectedFile] = useState<File | undefined>();
+  const [blockAdmin, setBlockAdmin] = useState(false);
 
   useEffect(() => {
     // Redirect to login if not logged in
@@ -30,6 +31,17 @@ export default function InterviewUpload() {
       return;
     }
     const user = JSON.parse(userStr);
+    // Block admin users from accessing this page
+    if (user.role === 'admin') {
+      setBlockAdmin(true);
+      toast({
+        title: "Admins cannot attend interviews",
+        description: "Admin users are not allowed to upload resumes or attend interviews.",
+        variant: "destructive"
+      });
+      setTimeout(() => setLocation('/admin'), 1500);
+      return;
+    }
     // Autofill email with login email
     setFormData(prev => ({ ...prev, email: user.email }));
     // Block upload if interview is completed
@@ -128,6 +140,8 @@ export default function InterviewUpload() {
     setSelectedFile(undefined);
   };
 
+  if (blockAdmin) return null;
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="text-center mb-8">
@@ -219,6 +233,7 @@ export default function InterviewUpload() {
                       <SelectItem value="hr_executive">HR Executive</SelectItem>
                       <SelectItem value="hrbp">HR Business Partner</SelectItem>
                       <SelectItem value="recruiter">Recruiter</SelectItem>
+                      <SelectItem value="qa_director">QA Director</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

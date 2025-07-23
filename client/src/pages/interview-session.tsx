@@ -85,6 +85,17 @@ export default function InterviewSession() {
       setLocation('/login');
       return;
     }
+    // Block admin users from accessing this page
+    const parsedUser = JSON.parse(user);
+    if (parsedUser.role === 'admin') {
+      toast({
+        title: "Admins cannot attend interviews",
+        description: "Admin users are not allowed to attend interviews.",
+        variant: "destructive"
+      });
+      setTimeout(() => setLocation('/admin'), 1500);
+      return;
+    }
     // Redirect to upload resume if no interview in progress or interview is not in-progress
     const stored = sessionStorage.getItem('currentInterview');
     if (!stored) {
@@ -253,16 +264,23 @@ export default function InterviewSession() {
   };
 
   // Remove Ask Question, add Play Audio
-  const playAudio = () => {
+  const playAudio = async () => {
     if (!interviewData) return;
     const question = interviewData.questions[interviewData.currentQuestionIndex];
-    const utterance = new window.SpeechSynthesisUtterance(question);
-    utterance.voice = window.speechSynthesis.getVoices().find(v => v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('ai')) || null;
-    utterance.rate = 1;
-    utterance.pitch = 1.1;
-    utterance.volume = 1;
-    utterance.lang = 'en-US';
-    window.speechSynthesis.speak(utterance);
+    try {
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: question })
+      });
+      if (!res.ok) throw new Error('Failed to fetch audio');
+      const audioBlob = await res.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      audio.play();
+    } catch (err) {
+      toast({ title: 'Audio Error', description: 'Could not play question audio.', variant: 'destructive' });
+    }
   };
 
   if (!interviewData) {

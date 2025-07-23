@@ -3,10 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Download, Eye, Trash, FolderOutput, Fan, Bot } from 'lucide-react';
+import { Download, Eye, Trash, FolderOutput, Fan, Bot, Trash2 } from 'lucide-react';
 import { getAdminInterviews, getAdminStats, deleteInterview, getInterviewResults } from '@/lib/api';
 import React, { useEffect, useState } from 'react';
 import { useLocation } from 'wouter';
+import { deleteCandidate } from '@/lib/api';
 
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
@@ -72,6 +73,50 @@ export default function AdminDashboard() {
     }
   };
 
+  // Voice Provider State
+  const [voiceProvider, setVoiceProvider] = useState<'elevenlabs' | 'pyttsx3'>('pyttsx3');
+  const [voiceLoading, setVoiceLoading] = useState(true);
+  const [voiceSaving, setVoiceSaving] = useState(false);
+  const [voiceError, setVoiceError] = useState('');
+
+  useEffect(() => {
+    setVoiceLoading(true);
+    fetch('/api/admin/voice-provider')
+      .then(res => res.json())
+      .then(data => {
+        setVoiceProvider(data.provider);
+        setVoiceLoading(false);
+      })
+      .catch(() => {
+        setVoiceError('Failed to load voice provider');
+        setVoiceLoading(false);
+      });
+  }, []);
+
+  const handleVoiceProviderChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const provider = e.target.value as 'elevenlabs' | 'pyttsx3';
+    setVoiceProvider(provider);
+    setVoiceSaving(true);
+    setVoiceError('');
+    try {
+      const res = await fetch('/api/admin/voice-provider', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-role': 'admin',
+        },
+        body: JSON.stringify({ provider })
+      });
+      if (!res.ok) {
+        setVoiceError('Failed to save voice provider');
+      }
+    } catch {
+      setVoiceError('Failed to save voice provider');
+    } finally {
+      setVoiceSaving(false);
+    }
+  };
+
   const getRecommendationColor = (rec: string) => {
     switch (rec) {
       case 'Hire': return 'bg-green-100 text-green-800';
@@ -98,6 +143,7 @@ export default function AdminDashboard() {
   const [viewedInterview, setViewedInterview] = useState<any>(null);
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deletingCandidateId, setDeletingCandidateId] = useState<number | null>(null);
 
   const handleDelete = async (id: number) => {
     if (!window.confirm('Are you sure you want to delete this interview?')) return;
@@ -109,6 +155,19 @@ export default function AdminDashboard() {
       alert('Failed to delete interview');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleDeleteCandidate = async (candidateId: number) => {
+    if (!window.confirm('Are you sure you want to delete this candidate and all their data?')) return;
+    setDeletingCandidateId(candidateId);
+    try {
+      await deleteCandidate(candidateId);
+      window.location.reload();
+    } catch (err) {
+      alert('Failed to delete candidate');
+    } finally {
+      setDeletingCandidateId(null);
     }
   };
 
@@ -262,6 +321,9 @@ export default function AdminDashboard() {
                           <Button variant="ghost" size="sm" onClick={() => handleDelete(interview.id)} disabled={deletingId === interview.id}>
                             <Trash className="h-4 w-4" />
                           </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDeleteCandidate(interview.candidate.id)} disabled={deletingCandidateId === interview.candidate.id}>
+                            <Trash2 className="h-4 w-4 text-red-600" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -302,6 +364,22 @@ export default function AdminDashboard() {
                 {providerError && <span className="text-red-500 ml-2">{providerError}</span>}
                 <div className="text-xs text-gray-500 mt-2">
                   Select which AI provider to use for question generation. This setting is global.
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Voice Provider</label>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                  value={voiceProvider}
+                  onChange={handleVoiceProviderChange}
+                  disabled={voiceLoading || voiceSaving}
+                >
+                  <option value="pyttsx3">Python TTS</option>
+                  <option value="elevenlabs">ElevenLabs (Human Voice)</option>
+                </select>
+                {voiceError && <span className="text-red-500 ml-2">{voiceError}</span>}
+                <div className="text-xs text-gray-500 mt-2">
+                  Select which voice provider to use for reading out interview questions.
                 </div>
               </div>
               <div className="flex items-center justify-between">

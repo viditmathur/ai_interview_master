@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Star, Code, Users, ThumbsUp, Download, Calendar } from 'lucide-react';
-import { getCandidateResults } from '@/lib/api';
+import { getCandidateResults, getAdminInterviews } from '@/lib/api';
 
 interface InterviewResults {
   interview: any;
@@ -14,8 +14,19 @@ interface InterviewResults {
 
 export default function CandidateDashboard() {
   const [candidateId, setCandidateId] = useState<number | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminInterviews, setAdminInterviews] = useState<any[]>([]);
 
   useEffect(() => {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      if (user.role === 'admin') {
+        setIsAdmin(true);
+        getAdminInterviews().then(setAdminInterviews);
+        return;
+      }
+    }
     const stored = sessionStorage.getItem('interviewResults');
     if (stored) {
       const data = JSON.parse(stored);
@@ -25,9 +36,59 @@ export default function CandidateDashboard() {
 
   const { data: results, isLoading } = useQuery({
     queryKey: ['/api/candidates', candidateId, 'results'],
-    enabled: !!candidateId,
+    enabled: !!candidateId && !isAdmin,
     queryFn: () => getCandidateResults(candidateId!),
   });
+
+  if (isAdmin) {
+    return (
+      <div className="max-w-6xl mx-auto">
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">Recent Interviews</h2>
+          <p className="text-lg text-gray-600">View and manage all candidate interview results</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead>
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Candidate</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {adminInterviews.map((interview: any) => (
+                <tr key={interview.id}>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-gray-900">{interview.candidate.name}</div>
+                    <div className="text-xs text-gray-500">{interview.candidate.email}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{interview.candidate.jobRole}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{new Date(interview.createdAt).toLocaleDateString()}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{interview.evaluation ? (interview.evaluation.overallScore / 10).toFixed(1) : '--'}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    {interview.evaluation ? (
+                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                        {interview.evaluation.recommendation}
+                      </span>
+                    ) : (
+                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">In Progress</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <Button size="sm" variant="outline" onClick={() => window.open(`/admin/interview/${interview.id}`, '_blank')}>View Results</Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
 
   if (!candidateId) {
     return (

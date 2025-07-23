@@ -8,6 +8,7 @@ import { insertCandidateSchema, insertAnswerSchema, insertUserSchema } from "@sh
 import { z } from "zod";
 import pdfParse from 'pdf-parse';
 import { RtcTokenBuilder } from 'agora-access-token';
+import { generateTTS } from "./services/tts";
 
 interface RequestWithFile extends Request {
   file?: Express.Multer.File;
@@ -380,6 +381,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin: Delete candidate (and all their interviews, answers, evaluations)
+  app.delete("/api/admin/candidates/:id", async (req, res) => {
+    const candidateId = parseInt(req.params.id);
+    try {
+      // Get all interviews for candidate
+      const interviews = await storage.getInterviewsByCandidate(candidateId);
+      for (const interview of interviews) {
+        await storage.deleteAnswersByInterview(interview.id);
+        await storage.deleteEvaluationByInterview(interview.id);
+        await storage.deleteInterview(interview.id);
+      }
+      // Delete candidate
+      await storage.deleteCandidate(candidateId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting candidate:", error);
+      res.status(500).json({ message: "Failed to delete candidate" });
+    }
+  });
+
   // Admin: Get stats
   app.get("/api/admin/stats", async (req, res) => {
     try {
@@ -421,6 +442,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin: Get voice provider
+  app.get("/api/admin/voice-provider", async (_req, res) => {
+    const provider = await storage.getSetting("voice_provider");
+    res.json({ provider: provider || "pyttsx3" });
+  });
+
+  // Admin: Set voice provider
+  app.post("/api/admin/voice-provider", async (req, res) => {
+    const userRole = req.headers['x-user-role'];
+    if (userRole !== 'admin') {
+      return res.status(403).json({ message: 'Forbidden: Admins only' });
+    }
+    const { provider } = req.body;
+    if (!provider || !["elevenlabs", "pyttsx3"].includes(provider)) {
+      return res.status(400).json({ message: "Invalid provider" });
+    }
+    try {
+      await storage.setSetting("voice_provider", provider);
+      res.json({ provider });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to save provider" });
+    }
+  });
+
   // Agora token endpoint
   app.post('/api/agora/token', (req, res) => {
     const { channel, uid } = req.body;
@@ -440,6 +485,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       Math.floor(Date.now() / 1000) + expireTime
     );
     res.json({ token });
+  });
+
+  // TTS endpoint: returns audio for a question using the selected provider
+  app.post("/api/tts", async (req, res) => {
+    const { text } = req.body;
+    if (!text) return res.status(400).json({ message: "Text is required" });
+    try {
+      // Get global voice provider
+      const rawProvider = await storage.getSetting("voice_provider");
+      const provider = (rawProvider || "pyttsx3") as 'elevenlabs' | 'pyttsx3';
+      const audioBuffer = await generateTTS(text, provider);
+      res.set({ 'Content-Type': 'audio/mpeg' });
+      res.send(audioBuffer);
+    } catch (err) {
+      console.error("TTS error:", err);
+      res.status(500).json({ message: "Failed to generate audio" });
+    }
   });
 
   const httpServer = createServer(app);
