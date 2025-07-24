@@ -18,9 +18,17 @@ export default function CandidateDashboard() {
   const [adminInterviews, setAdminInterviews] = useState<any[]>([]);
 
   useEffect(() => {
+    // Block if interview is in progress (any tab) for candidates only
     const userStr = localStorage.getItem('user');
+    const user = userStr ? JSON.parse(userStr) : null;
+    if (user && user.role !== 'admin' && sessionStorage.getItem('currentInterview')) {
+      alert('Interview In Progress: You cannot access the dashboard while an interview is in progress. Logging out.');
+      localStorage.removeItem('user');
+      sessionStorage.clear();
+      window.location.href = '/login';
+      return;
+    }
     if (userStr) {
-      const user = JSON.parse(userStr);
       if (user.role === 'admin') {
         setIsAdmin(true);
         getAdminInterviews().then(setAdminInterviews);

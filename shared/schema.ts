@@ -10,6 +10,7 @@ export const candidates = pgTable("candidates", {
   jobRole: text("job_role").notNull(),
   resumeText: text("resume_text").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  disqualified: boolean("disqualified").default(false).notNull(),
 });
 
 export const interviews = pgTable("interviews", {
@@ -45,11 +46,21 @@ export const evaluations = pgTable("evaluations", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const auditLogs = pgTable("audit_logs", {
+  id: serial("id").primaryKey(),
+  action: text("action").notNull(),
+  target: text("target").notNull(),
+  performedBy: text("performed_by").notNull(),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+});
+
+// Extend users table for admin roles
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   email: text("email").notNull().unique(),
   password: text("password").notNull(), // hashed password
   role: text("role").notNull(), // 'admin' or 'candidate'
+  adminRole: text("admin_role"), // 'SuperAdmin', 'Evaluator', 'Viewer', or null
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -65,6 +76,14 @@ export const questionBank = pgTable("question_bank", {
   questionText: text("question_text").notNull(),
   source: text("source").notNull(), // e.g., 'gemini', 'manual'
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const tokenUsage = pgTable("token_usage", {
+  id: serial("id").primaryKey(),
+  provider: text("provider").notNull(), // 'openai' or 'gemini'
+  tokens: integer("tokens").notNull(),
+  cost: integer("cost").notNull(), // store as cents for precision
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
 });
 
 // Insert schemas

@@ -1,15 +1,15 @@
 import fetch from 'node-fetch';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { promisify } from 'util';
-import { exec } from 'child_process';
-const say = require('say');
+import { execFile } from 'child_process';
 
-const sayExport = say.export || say.speak;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const tmpDir = path.resolve(__dirname, '../../attached_assets');
 const tmpFile = path.join(tmpDir, 'tts_output.wav');
-const tmpMp3 = path.join(tmpDir, 'tts_output.mp3');
-const execAsync = promisify(exec);
 
 export async function generateTTS(text: string, provider: 'elevenlabs' | 'pyttsx3'): Promise<Buffer> {
   if (provider === 'elevenlabs') {
@@ -34,19 +34,15 @@ export async function generateTTS(text: string, provider: 'elevenlabs' | 'pyttsx
     if (!response.ok) throw new Error('Failed to fetch audio from ElevenLabs');
     return Buffer.from(await response.arrayBuffer());
   } else {
-    // Use 'say' to generate a wav file, then convert to mp3 (requires ffmpeg)
+    // Use Python pyttsx3 script to generate wav file
     await new Promise((resolve, reject) => {
-      sayExport(text, null, 1.0, tmpFile, (err: any) => {
+      const python = execFile('python3', [path.join(__dirname, 'tts.py'), text, tmpFile], (err) => {
         if (err) reject(err);
         else resolve(null);
       });
     });
-    // Convert wav to mp3 using ffmpeg
-    await execAsync(`ffmpeg -y -i "${tmpFile}" -ar 44100 -ac 2 -b:a 192k "${tmpMp3}"`);
-    const mp3Buffer = fs.readFileSync(tmpMp3);
-    // Clean up temp files
+    const wavBuffer = fs.readFileSync(tmpFile);
     fs.unlinkSync(tmpFile);
-    fs.unlinkSync(tmpMp3);
-    return mp3Buffer;
+    return wavBuffer;
   }
 } 

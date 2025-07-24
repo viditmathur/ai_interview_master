@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { joinAgoraChannel, leaveAgoraChannel } from '@/lib/agora';
-import { submitAnswer } from '@/lib/api';
+import { submitAnswer, getInterview } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
 interface InterviewData {
@@ -78,6 +78,58 @@ export default function InterviewSession() {
     setTranscript('');
   }, [interviewData?.currentQuestionIndex]);
 
+  // Tab/window lockout logic (candidates only, only during interview)
+  useEffect(() => {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) return;
+    const user = JSON.parse(userStr);
+    if (user.role === 'admin') return;
+    // Set interview in progress flag
+    localStorage.setItem('interviewInProgress', 'true');
+    // Use BroadcastChannel for cross-tab communication
+    const channel = new BroadcastChannel('interview');
+    channel.postMessage({ type: 'interview-started' });
+    channel.onmessage = (event) => {
+      if (event.data && event.data.type === 'interview-started') {
+        // Disqualify candidate
+        const candidateId = sessionStorage.getItem('candidateId');
+        if (candidateId) {
+          fetch(`/api/candidates/${candidateId}/disqualify`, { method: 'POST' });
+        }
+        localStorage.setItem('disciplinaryLogout', 'true');
+        toast({
+          title: 'Security Alert',
+          description: 'User tried to open a new tab/window.. logging out',
+          variant: 'destructive'
+        });
+        setTimeout(() => {
+          localStorage.removeItem('user');
+          localStorage.removeItem('interviewInProgress');
+          sessionStorage.clear();
+          window.location.href = '/login';
+        }, 1500);
+      }
+    };
+    // Clean up on unmount or after interview
+    return () => {
+      localStorage.removeItem('interviewInProgress');
+      channel.close();
+    };
+  }, [toast]);
+
+  // On leave call, dashboard, or forbidden navigation, also disqualify
+  const handleDisciplinaryLogout = () => {
+    const candidateId = sessionStorage.getItem('candidateId');
+    if (candidateId) {
+      fetch(`/api/candidates/${candidateId}/disqualify`, { method: 'POST' });
+    }
+    localStorage.setItem('disciplinaryLogout', 'true');
+    localStorage.removeItem('user');
+    localStorage.removeItem('interviewInProgress');
+    sessionStorage.clear();
+    window.location.href = '/login';
+  };
+
   useEffect(() => {
     // Redirect to login if not logged in
     const user = localStorage.getItem('user');
@@ -96,21 +148,61 @@ export default function InterviewSession() {
       setTimeout(() => setLocation('/admin'), 1500);
       return;
     }
-    // Redirect to upload resume if no interview in progress or interview is not in-progress
     const stored = sessionStorage.getItem('currentInterview');
     if (!stored) {
-      sessionStorage.clear();
-      setLocation('/interview-upload');
-      return;
+      // Try to fetch interview data if interviewId is present
+      const interviewId = sessionStorage.getItem('interviewId');
+      if (interviewId) {
+        getInterview(Number(interviewId)).then(data => {
+          if (data && data.interview && data.interview.status === 'in-progress') {
+            setInterviewData({
+              interviewId: data.interview.id,
+              candidateId: data.interview.candidateId,
+              questions: data.interview.questions.questions,
+              currentQuestionIndex: data.interview.currentQuestionIndex,
+              candidateName: data.candidate?.name || '',
+              candidateRole: data.candidate?.jobRole || '',
+              candidatePhone: data.candidate?.phone || '',
+            });
+            // Set currentInterview for navigation lockout (but only store ids/questions, not stale candidate info)
+            sessionStorage.setItem('currentInterview', JSON.stringify({
+              interviewId: data.interview.id,
+              candidateId: data.interview.candidateId,
+              questions: data.interview.questions.questions,
+              currentQuestionIndex: data.interview.currentQuestionIndex
+            }));
+          } else {
+            // Interview not in progress, redirect
+            sessionStorage.clear();
+            setLocation('/interview-upload');
+          }
+        });
+        return;
+      } else {
+        sessionStorage.clear();
+        setLocation('/interview-upload');
+        return;
+      }
     }
     const data = JSON.parse(stored);
-    // Optionally, fetch interview status from backend for even more robust check
-    if (data.status && data.status !== 'in-progress') {
-      sessionStorage.clear();
-      setLocation('/interview-upload');
-      return;
-    }
-    setInterviewData(data);
+    // Always fetch latest candidate info for display
+    getInterview(Number(data.interviewId)).then(fresh => {
+      setInterviewData({
+        interviewId: fresh.interview.id,
+        candidateId: fresh.interview.candidateId,
+        questions: fresh.interview.questions.questions,
+        currentQuestionIndex: fresh.interview.currentQuestionIndex,
+        candidateName: fresh.candidate?.name || '',
+        candidateRole: fresh.candidate?.jobRole || '',
+        candidatePhone: fresh.candidate?.phone || '',
+      });
+    });
+    // Set currentInterview only when session starts
+    sessionStorage.setItem('currentInterview', JSON.stringify(data));
+    return () => {
+      // Clean up when leaving session
+      sessionStorage.removeItem('currentInterview');
+    };
   }, [setLocation]);
 
   const startAgora = async () => {
@@ -133,15 +225,12 @@ export default function InterviewSession() {
     await leaveAgoraChannel();
     setJoined(false);
     stopTranscription();
-    // Log out user and block further attempts
-    localStorage.removeItem('user');
-    sessionStorage.clear();
     toast({
       title: "You have left the interview.",
       description: "You have been logged out.",
       variant: "destructive"
     });
-    setTimeout(() => setLocation('/login'), 1500);
+    setTimeout(() => handleDisciplinaryLogout(), 1000);
   };
 
   const startTranscription = () => {
@@ -196,7 +285,7 @@ export default function InterviewSession() {
       });
       setTranscript('');
       if (response.completed) {
-        sessionStorage.clear();
+        sessionStorage.clear(); // Interview is over, clear all session data
         sessionStorage.setItem('interviewResults', JSON.stringify({
           candidateId: interviewData.candidateId,
           interviewId: interviewData.interviewId,

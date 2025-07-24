@@ -17,7 +17,9 @@ import {
   type User,
   type InsertUser,
   settings,
-  questionBank
+  questionBank,
+  auditLogs,
+  tokenUsage
 } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
 import type { IStorage } from "./storage";
@@ -34,6 +36,12 @@ export class DatabaseStorage implements IStorage {
   async getCandidateById(id: number): Promise<Candidate | undefined> {
     const result = await db.select().from(candidates).where(eq(candidates.id, id));
     return result[0];
+  }
+
+  async updateCandidate(id: number, updates: Partial<Candidate>): Promise<Candidate> {
+    const [result] = await db.update(candidates).set(updates).where(eq(candidates.id, id)).returning();
+    if (!result) throw new Error('Candidate not found');
+    return result;
   }
 
   async createInterview(interview: InsertInterview): Promise<Interview> {
@@ -145,6 +153,16 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(candidates).where(eq(candidates.email, email));
   }
 
+  async getAllUsers(): Promise<User[]> {
+    const result = await db.select().from(users);
+    return result;
+  }
+
+  async getAllCandidates(): Promise<Candidate[]> {
+    const result = await db.select().from(candidates);
+    return result;
+  }
+
   async getSetting(key: string): Promise<string | undefined> {
     const result = await db.select().from(settings).where(eq(settings.key, key));
     return result[0]?.value;
@@ -165,6 +183,11 @@ export class DatabaseStorage implements IStorage {
     await db.insert(questionBank).values({ role, questionText, source });
   }
 
+  async getAllQuestions(): Promise<any[]> {
+    const result = await db.select().from(questionBank);
+    return result;
+  }
+
   async deleteInterview(id: number): Promise<void> {
     await db.delete(interviews).where(eq(interviews.id, id));
   }
@@ -176,5 +199,68 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteEvaluationByInterview(interviewId: number): Promise<void> {
     await db.delete(evaluations).where(eq(evaluations.interviewId, interviewId));
+  }
+  async disqualifyCandidate(id: number): Promise<void> {
+    await db.update(candidates).set({ disqualified: true }).where(eq(candidates.id, id));
+  }
+
+  async createAuditLog(log: { action: string; target: string; performedBy: string; timestamp?: Date }) {
+    await db.insert(auditLogs).values({
+      action: log.action,
+      target: log.target,
+      performedBy: log.performedBy,
+      timestamp: log.timestamp || new Date(),
+    });
+  }
+
+  async getAuditLogs(filters?: { action?: string; performedBy?: string; date?: string }) {
+    let query = db.select().from(auditLogs);
+    if (filters) {
+      if (filters.action) query = query.where(eq(auditLogs.action, filters.action));
+      if (filters.performedBy) query = query.where(eq(auditLogs.performedBy, filters.performedBy));
+      if (filters.date) query = query.where(sql`DATE(${auditLogs.timestamp}) = ${filters.date}`);
+    }
+    return await query;
+  }
+
+  async getAllAdmins(): Promise<User[]> {
+    return await db.select().from(users).where(eq(users.role, 'admin'));
+  }
+  async updateAdminRole(email: string, adminRole: string) {
+    await db.update(users).set({ adminRole }).where(eq(users.email, email));
+  }
+  async addAdmin(email: string, password: string, adminRole: string) {
+    const [user] = await db.insert(users).values({ email, password, role: 'admin', adminRole, createdAt: new Date() }).returning();
+    return user;
+  }
+  async removeAdmin(email: string) {
+    await db.delete(users).where(eq(users.email, email));
+  }
+
+  async logTokenUsage(provider: string, tokens: number, cost: number, timestamp?: Date) {
+    await db.insert(tokenUsage).values({ provider, tokens, cost, timestamp: timestamp || new Date() });
+  }
+  async getTokenUsageStats() {
+    // Aggregate by provider and period
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const providers = ['openai', 'gemini'];
+    const stats: any = {};
+    for (const provider of providers) {
+      const daily = await db.select().from(tokenUsage).where(tokenUsage.provider.eq(provider)).where(tokenUsage.timestamp.gte(startOfDay));
+      const weekly = await db.select().from(tokenUsage).where(tokenUsage.provider.eq(provider)).where(tokenUsage.timestamp.gte(startOfWeek));
+      const monthly = await db.select().from(tokenUsage).where(tokenUsage.provider.eq(provider)).where(tokenUsage.timestamp.gte(startOfMonth));
+      const all = await db.select().from(tokenUsage).where(tokenUsage.provider.eq(provider));
+      stats[provider] = {
+        daily: daily.reduce((sum, u) => sum + u.tokens, 0),
+        weekly: weekly.reduce((sum, u) => sum + u.tokens, 0),
+        monthly: monthly.reduce((sum, u) => sum + u.tokens, 0),
+        cost: all.reduce((sum, u) => sum + u.cost, 0),
+      };
+    }
+    return stats;
   }
 }

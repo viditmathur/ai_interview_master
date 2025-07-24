@@ -42,6 +42,20 @@ export default function InterviewUpload() {
       setTimeout(() => setLocation('/admin'), 1500);
       return;
     }
+    // Block if interview is in progress (any tab) for candidates only
+    if (user && user.role !== 'admin' && sessionStorage.getItem('currentInterview')) {
+      toast({
+        title: 'Interview In Progress',
+        description: 'You cannot upload a resume while an interview is in progress.',
+        variant: 'destructive'
+      });
+      setTimeout(() => {
+        localStorage.removeItem('user');
+        sessionStorage.clear();
+        setLocation('/login');
+      }, 1500);
+      return;
+    }
     // Autofill email with login email
     setFormData(prev => ({ ...prev, email: user.email }));
     // Block upload if interview is completed
@@ -93,18 +107,14 @@ export default function InterviewUpload() {
         resume: selectedFile
       });
 
-      // Store interview data for the session
-      sessionStorage.setItem('currentInterview', JSON.stringify({
-        interviewId: response.interviewId,
-        candidateId: response.candidateId,
-        questions: response.questions,
-        currentQuestionIndex: 0
-      }));
-
       toast({
         title: "Interview Started",
         description: "Your resume has been processed. Good luck!"
       });
+
+      // Store interviewId and candidateId for the session page to fetch interview data
+      sessionStorage.setItem('interviewId', response.interviewId.toString());
+      sessionStorage.setItem('candidateId', response.candidateId.toString());
 
       setLocation('/interview');
       

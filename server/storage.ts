@@ -20,6 +20,7 @@ export interface IStorage {
   // Candidate operations
   createCandidate(candidate: InsertCandidate): Promise<Candidate>;
   getCandidateById(id: number): Promise<Candidate | undefined>;
+  updateCandidate(id: number, updates: Partial<Candidate>): Promise<Candidate>;
   
   // Interview operations
   createInterview(interview: InsertInterview): Promise<Interview>;
@@ -50,16 +51,28 @@ export interface IStorage {
   deleteAnswersByInterview(interviewId: number): Promise<void>;
   deleteEvaluationByInterview(interviewId: number): Promise<void>;
   deleteCandidate(id: number): Promise<void>;
+  disqualifyCandidate(id: number): Promise<void>;
+  getAllCandidates(): Promise<Candidate[]>;
+  getAllQuestions(): Promise<any[]>;
+  getAllAdmins(): Promise<User[]>;
+  updateAdminRole(email: string, adminRole: string): Promise<void>;
+  addAdmin(email: string, password: string, adminRole: string): Promise<User>;
+  removeAdmin(email: string): Promise<void>;
 
   // User operations
   createUser(user: InsertUser): Promise<User>;
   getUserByEmail(email: string): Promise<User | undefined>;
   findCandidatesByEmail(email: string): Promise<any[]>;
+  getAllUsers(): Promise<User[]>;
   // Settings operations
   getSetting(key: string): Promise<string | undefined>;
   setSetting(key: string, value: string): Promise<void>;
   getQuestionsByRole(role: string): Promise<any[]>;
   saveQuestionToBank(q: { role: string, questionText: string, source: string }): Promise<void>;
+  createAuditLog(log: { action: string; target: string; performedBy: string; timestamp?: Date }): Promise<void>;
+  getAuditLogs(filters?: { action?: string; performedBy?: string; date?: string }): Promise<any[]>;
+  logTokenUsage(provider: string, tokens: number, cost: number, timestamp?: Date): Promise<void>;
+  getTokenUsageStats(): Promise<any>;
 }
 
 export class MemStorage implements IStorage {
@@ -78,12 +91,16 @@ export class MemStorage implements IStorage {
   private userIdCounter = 1;
   private questionBankIdCounter = 1;
 
+  private auditLogs: any[] = [];
+  private tokenUsage: any[] = [];
+
   async createCandidate(candidate: InsertCandidate): Promise<Candidate> {
     const id = this.candidateIdCounter++;
     const newCandidate: Candidate = { 
       ...candidate, 
       id, 
-      createdAt: new Date() 
+      createdAt: new Date(),
+      disqualified: false
     };
     this.candidates.set(id, newCandidate);
     return newCandidate;
@@ -91,6 +108,14 @@ export class MemStorage implements IStorage {
 
   async getCandidateById(id: number): Promise<Candidate | undefined> {
     return this.candidates.get(id);
+  }
+
+  async updateCandidate(id: number, updates: Partial<Candidate>): Promise<Candidate> {
+    const candidate = this.candidates.get(id);
+    if (!candidate) throw new Error('Candidate not found');
+    const updated = { ...candidate, ...updates };
+    this.candidates.set(id, updated);
+    return updated;
   }
 
   async createInterview(interview: InsertInterview): Promise<Interview> {
@@ -219,6 +244,9 @@ export class MemStorage implements IStorage {
   async findCandidatesByEmail(email: string) {
     return Array.from(this.candidates.values()).filter((c) => c.email === email);
   }
+  async getAllUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
+  }
   async getSetting(key: string): Promise<string | undefined> {
     return this.settings.get(key);
   }
@@ -232,6 +260,41 @@ export class MemStorage implements IStorage {
   async saveQuestionToBank({ role, questionText, source }: { role: string, questionText: string, source: string }) {
     const id = this.questionBankIdCounter++;
     this.questionBank.set(id, { id, role, questionText, source, createdAt: new Date() });
+  }
+
+  async createAuditLog(log: { action: string; target: string; performedBy: string; timestamp?: Date }) {
+    this.auditLogs.push({ ...log, timestamp: log.timestamp || new Date(), id: this.auditLogs.length + 1 });
+  }
+
+  async getAuditLogs(filters?: { action?: string; performedBy?: string; date?: string }) {
+    let logs = this.auditLogs;
+    if (filters) {
+      if (filters.action) logs = logs.filter(l => l.action === filters.action);
+      if (filters.performedBy) logs = logs.filter(l => l.performedBy === filters.performedBy);
+      if (filters.date) logs = logs.filter(l => l.timestamp && l.timestamp.toISOString().slice(0, 10) === filters.date);
+    }
+    return logs;
+  }
+
+  async logTokenUsage(provider: string, tokens: number, cost: number, timestamp?: Date) {
+    this.tokenUsage.push({ id: this.tokenUsage.length + 1, provider, tokens, cost, timestamp: timestamp || new Date() });
+  }
+  async getTokenUsageStats() {
+    // Aggregate by provider and period
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const stats: any = {};
+    for (const u of this.tokenUsage) {
+      if (!stats[u.provider]) stats[u.provider] = { daily: 0, weekly: 0, monthly: 0, cost: 0 };
+      if (u.timestamp >= startOfDay) stats[u.provider].daily += u.tokens;
+      if (u.timestamp >= startOfWeek) stats[u.provider].weekly += u.tokens;
+      if (u.timestamp >= startOfMonth) stats[u.provider].monthly += u.tokens;
+      stats[u.provider].cost += u.cost;
+    }
+    return stats;
   }
 
   async deleteInterview(id: number): Promise<void> {
@@ -253,6 +316,37 @@ export class MemStorage implements IStorage {
   }
   async deleteCandidate(id: number): Promise<void> {
     this.candidates.delete(id);
+  }
+
+  async disqualifyCandidate(id: number): Promise<void> {
+    const candidate = this.candidates.get(id);
+    if (candidate) {
+      this.candidates.set(id, { ...candidate, disqualified: true });
+    }
+  }
+
+  async getAllCandidates(): Promise<Candidate[]> {
+    return Array.from(this.candidates.values());
+  }
+
+  async getAllQuestions(): Promise<any[]> {
+    return Array.from(this.questionBank.values());
+  }
+
+  async getAllAdmins(): Promise<User[]> {
+    return Array.from(this.users.values()).filter(u => u.role === 'admin');
+  }
+  async updateAdminRole(email: string, adminRole: string) {
+    const user = Array.from(this.users.values()).find(u => u.email === email);
+    if (user) user.adminRole = adminRole;
+  }
+  async addAdmin(email: string, password: string, adminRole: string) {
+    const user = { id: this.userIdCounter++, email, password, role: 'admin', adminRole, createdAt: new Date() };
+    this.users.set(email, user);
+    return user;
+  }
+  async removeAdmin(email: string) {
+    this.users.delete(email);
   }
 }
 
