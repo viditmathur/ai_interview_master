@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { joinAgoraChannel, leaveAgoraChannel } from '@/lib/agora';
 import { submitAnswer, getInterview } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
 interface InterviewData {
   interviewId: number;
@@ -34,6 +35,7 @@ export default function InterviewSession() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [timerActive, setTimerActive] = useState(false);
   const [questionLocked, setQuestionLocked] = useState(false);
+  const [consentOpen, setConsentOpen] = useState(true);
 
   // Remove timer start on question change
   useEffect(() => {
@@ -382,6 +384,29 @@ export default function InterviewSession() {
 
   return (
     <div className="max-w-5xl mx-auto">
+      <Dialog open={consentOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Consent Required</DialogTitle>
+          </DialogHeader>
+          <div className="mb-4">
+            <p className="mb-2">You are about to begin a video-based AI interview. Your video, audio, and responses will be recorded and analyzed for evaluation purposes.</p>
+            <ul className="list-disc ml-6 text-sm text-gray-600 mb-2">
+              <li>No retakes or pauses are allowed during the interview.</li>
+              <li>Ensure you are in a quiet, well-lit environment.</li>
+              <li>By clicking 'I Accept', you consent to participate in this interview.</li>
+            </ul>
+          </div>
+          <DialogFooter>
+            <button
+              className="bg-primary text-white px-4 py-2 rounded"
+              onClick={() => setConsentOpen(false)}
+            >
+              I Accept, Start Interview
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div className="mb-8">
         <div className="flex justify-between items-center mb-2">
           <h2 className="text-2xl font-bold text-gray-900">AI Interview in Progress</h2>
@@ -394,9 +419,13 @@ export default function InterviewSession() {
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2">
           {!joined ? (
-            <button className="bg-blue-600 text-white px-4 py-2 rounded" onClick={startAgora}>
-              Join Video Interview
-            </button>
+            consentOpen ? (
+              <div className="text-center text-gray-500 py-12">Please accept consent to begin your interview.</div>
+            ) : (
+              <button className="bg-blue-600 text-white px-4 py-2 rounded" onClick={startAgora}>
+                Join Video Interview
+              </button>
+            )
           ) : (
             <>
               <div ref={videoRef} className="w-full h-64 bg-black rounded mb-4"></div>

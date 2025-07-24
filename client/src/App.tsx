@@ -13,6 +13,7 @@ import LoginPage from "@/pages/login";
 import React, { useEffect } from "react";
 import AdminInterviewResults from "@/pages/admin-interview-results";
 import Signup from './pages/signup';
+import { Logo } from '@/components/Logo';
 
 const queryClient = new QueryClient();
 
@@ -57,10 +58,8 @@ function Navigation() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-center items-center h-16">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-                <span className="text-white text-2xl font-bold">AI</span>
-              </div>
-              <h1 className="font-bold text-xl text-gray-900">FirstRoundAI</h1>
+              <Logo size={40} />
+              <h1 className="font-extrabold text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-blue-600 to-purple-500 ml-2">FirstroundAI</h1>
             </div>
           </div>
         </div>
@@ -79,10 +78,8 @@ function Navigation() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-                <span className="text-white text-2xl font-bold">AI</span>
-              </div>
-              <h1 className="font-bold text-xl text-gray-900">FirstRoundAI</h1>
+              <Logo size={40} />
+              <h1 className="font-extrabold text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-blue-600 to-purple-500 ml-2">FirstroundAI</h1>
             </div>
             <button onClick={handleLogout} className="ml-4 bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">Logout</button>
           </div>
@@ -96,10 +93,8 @@ function Navigation() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-white text-2xl font-bold">AI</span>
-            </div>
-            <h1 className="font-bold text-xl text-gray-900">FirstRoundAI</h1>
+            <Logo size={40} />
+            <h1 className="font-extrabold text-2xl tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-blue-600 to-purple-500 ml-2">FirstroundAI</h1>
           </div>
           <nav className="hidden md:flex space-x-8">
             <a href="/" className="text-primary pb-4 font-medium flex items-center">Home</a>
@@ -165,7 +160,10 @@ function SidebarLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen">
       <aside className="w-56 bg-white dark:bg-gray-800 shadow-lg flex-shrink-0 flex flex-col">
-        <div className="h-16 flex items-center px-6 font-bold text-xl border-b border-gray-200 dark:border-gray-700">FirstRoundAI</div>
+        <div className="h-16 flex items-center px-6 space-x-2 font-bold text-xl border-b border-gray-200 dark:border-gray-700">
+          <Logo size={32} />
+          <span className="font-extrabold text-lg tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-blue-600 to-purple-500">FirstroundAI</span>
+        </div>
         <nav className="flex-1 py-4 space-y-2">
           {nav.map(item => (
             <button

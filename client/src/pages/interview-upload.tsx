@@ -9,6 +9,8 @@ import { FileUpload } from '@/components/file-upload';
 import { AIStatusBanner } from '@/components/ai-status-banner';
 import { startInterview } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
 
 export default function InterviewUpload() {
   const [, setLocation] = useLocation();
@@ -73,6 +75,12 @@ export default function InterviewUpload() {
       }, 2000);
     }
   }, [setLocation, toast]);
+
+  // Remove all state and handlers related to resume intelligence preview
+  // const [resumeIntel, setResumeIntel] = useState<any>(null);
+  // const [intelLoading, setIntelLoading] = useState(false);
+  // const [showConfirm, setShowConfirm] = useState(false);
+  // const [editedJobRole, setEditedJobRole] = useState('');
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -150,6 +158,12 @@ export default function InterviewUpload() {
     setSelectedFile(undefined);
   };
 
+  // Add handler for confirmation
+  // const handleConfirm = () => {
+  //   setFormData(prev => ({ ...prev, jobRole: editedJobRole || resumeIntel?.inferredRole || '' }));
+  //   setShowConfirm(false);
+  // };
+
   if (blockAdmin) return null;
 
   return (
@@ -176,6 +190,74 @@ export default function InterviewUpload() {
                   selectedFile={selectedFile}
                   onFileRemove={() => setSelectedFile(undefined)}
                 />
+                {/* Remove all state and handlers related to resume intelligence preview */}
+                {/* {intelLoading && (
+                  <div className="mt-4 text-center text-gray-500"><i className="fas fa-spinner fa-spin"></i> Parsing resume...</div>
+                )} */}
+                {/* {resumeIntel && !intelLoading && (
+                  <div className="mt-6">
+                    <h3 className="font-bold mb-2">Resume Intelligence Preview</h3>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <Card>
+                        <CardHeader><CardTitle>Skills</CardTitle></CardHeader>
+                        <CardContent className="flex flex-wrap gap-2">
+                          {resumeIntel.skills?.length ? resumeIntel.skills.map((s: string, i: number) => <Badge key={i}>{s}</Badge>) : <span className="text-gray-400">None detected</span>}
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardHeader><CardTitle>Technologies/Tools</CardTitle></CardHeader>
+                        <CardContent className="flex flex-wrap gap-2">
+                          {resumeIntel.technologies?.length ? resumeIntel.technologies.map((t: string, i: number) => <Badge key={i}>{t}</Badge>) : <span className="text-gray-400">None detected</span>}
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardHeader><CardTitle>Most Recent Experience</CardTitle></CardHeader>
+                        <CardContent>
+                          {resumeIntel.mostRecentExperience || <span className="text-gray-400">Not found</span>}
+                          {resumeIntel.mostRecentCompany && <div className="text-xs text-gray-500 mt-1">Company: {resumeIntel.mostRecentCompany}</div>}
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardHeader><CardTitle>Education</CardTitle></CardHeader>
+                        <CardContent>
+                          {resumeIntel.education?.length ? resumeIntel.education.map((e: string, i: number) => <div key={i}>{e}</div>) : <span className="text-gray-400">Not found</span>}
+                        </CardContent>
+                      </Card>
+                    </div>
+                    <div className="mt-4 grid md:grid-cols-2 gap-4">
+                      <Card>
+                        <CardHeader><CardTitle>Inferred Role</CardTitle></CardHeader>
+                        <CardContent>
+                          <input
+                            className="border rounded px-2 py-1 w-full"
+                            value={editedJobRole}
+                            onChange={e => setEditedJobRole(e.target.value)}
+                            placeholder="Edit job role if needed"
+                          />
+                          <div className="text-xs text-gray-500 mt-1">Domain: {resumeIntel.inferredDomain}</div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardHeader><CardTitle>AI Summary</CardTitle></CardHeader>
+                        <CardContent>{resumeIntel.aiSummary || <span className="text-gray-400">Not available</span>}</CardContent>
+                      </Card>
+                    </div>
+                    <div className="mt-4 grid md:grid-cols-2 gap-4">
+                      <Card>
+                        <CardHeader><CardTitle>Weaknesses</CardTitle></CardHeader>
+                        <CardContent>
+                          {resumeIntel.weaknesses?.length ? resumeIntel.weaknesses.map((w: string, i: number) => <div key={i} className="text-red-600">{w}</div>) : <span className="text-gray-400">None detected</span>}
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardHeader><CardTitle>Suggested Focus Areas</CardTitle></CardHeader>
+                        <CardContent>
+                          {resumeIntel.focusAreas?.length ? resumeIntel.focusAreas.map((f: string, i: number) => <div key={i} className="text-blue-600">{f}</div>) : <span className="text-gray-400">None detected</span>}
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
+                )} */}
               </CardContent>
             </Card>
           </div>
@@ -264,7 +346,7 @@ export default function InterviewUpload() {
           </Button>
           <Button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || !selectedFile}
             className="bg-primary text-white hover:bg-blue-700 shadow-lg"
           >
             {isSubmitting ? (
@@ -279,6 +361,23 @@ export default function InterviewUpload() {
           </Button>
         </div>
       </form>
+      {/* Confirmation Modal */}
+      {/* <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Resume Insights</DialogTitle>
+          </DialogHeader>
+          <div className="mb-4">
+            <div className="mb-2">Please review your resume insights and job role before proceeding.</div>
+            <div className="mb-2 font-semibold">Job Role: <span className="text-primary">{editedJobRole || resumeIntel?.inferredRole}</span></div>
+            <div className="mb-2 text-xs text-gray-500">You can edit the job role above if needed.</div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setSelectedFile(undefined); setShowConfirm(false); }}>Upload Different Resume</Button>
+            <Button onClick={handleConfirm}>Looks Good, Proceed</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog> */}
     </div>
   );
 }
