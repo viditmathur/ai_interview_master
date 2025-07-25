@@ -156,14 +156,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { name, email, phone, jobRole } = startInterviewSchema.parse(req.body);
       // Check for existing candidate by email
       const candidatesWithEmail = await storage.findCandidatesByEmail(email);
+      console.log('[DEBUG] Interview start for email:', email);
       let candidate;
       if (candidatesWithEmail && candidatesWithEmail.length > 0) {
         candidate = candidatesWithEmail[0];
+        console.log('[DEBUG] Found candidate ID:', candidate.id);
         if (candidate.disqualified) {
+          console.log('[DEBUG] Candidate is disqualified');
           return res.status(403).json({ message: "Interview cancelled due to disciplinary action." });
         }
         const interviews = await storage.getInterviewsByCandidate(candidate.id);
+        console.log('[DEBUG] Candidate interviews:', interviews.map(i => ({ id: i.id, status: i.status })));
         if (interviews.some(i => i.status === 'completed')) {
+          console.log('[DEBUG] Candidate already completed interview, blocking.');
           return res.status(403).json({ message: "You have already completed your interview. Only one interview is allowed per user." });
         }
         // Update candidate info with latest values
@@ -186,6 +191,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           jobRole,
           resumeText
         });
+        console.log('[DEBUG] Created new candidate ID:', candidate.id);
       }
       // Get global AI provider
       const rawProvider = await storage.getSetting("ai_provider");

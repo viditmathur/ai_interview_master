@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useLocation } from 'wouter';
+import { Logo } from '@/components/Logo';
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -39,6 +40,10 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
       <form onSubmit={handleLogin} className="bg-white dark:bg-gray-800 p-8 rounded shadow w-full max-w-md">
+        <div className="flex flex-col items-center mb-6">
+          <Logo size={48} />
+          <span className="font-extrabold text-xl tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-blue-600 to-purple-500 mt-2">FirstroundAI</span>
+        </div>
         <h2 className="text-2xl font-bold mb-6 text-center">Login</h2>
         {error && <div className="mb-4 text-red-600 text-center">{error}</div>}
         <div className="mb-4">

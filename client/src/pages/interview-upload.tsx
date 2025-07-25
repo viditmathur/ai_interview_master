@@ -24,6 +24,7 @@ export default function InterviewUpload() {
   });
   const [selectedFile, setSelectedFile] = useState<File | undefined>();
   const [blockAdmin, setBlockAdmin] = useState(false);
+  const [alreadyCompleted, setAlreadyCompleted] = useState(false);
 
   useEffect(() => {
     // Redirect to login if not logged in
@@ -60,9 +61,10 @@ export default function InterviewUpload() {
     }
     // Autofill email with login email
     setFormData(prev => ({ ...prev, email: user.email }));
-    // Block upload if interview is completed
+    // Block upload if interview is completed (client-side check)
     const interviewResults = sessionStorage.getItem('interviewResults');
     if (interviewResults) {
+      setAlreadyCompleted(true);
       toast({
         title: "Interview Already Completed",
         description: "You have already completed your interview. You cannot upload another resume.",
@@ -73,6 +75,32 @@ export default function InterviewUpload() {
         sessionStorage.clear();
         setLocation('/login');
       }, 2000);
+      return;
+    }
+    // Backend check for completed interview
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      fetch(`/api/admin/candidates`).then(res => res.json()).then(candidates => {
+        const candidate = candidates.find((c: any) => c.email.toLowerCase() === user.email.toLowerCase());
+        if (candidate) {
+          fetch(`/api/admin/interviews`).then(res => res.json()).then(interviews => {
+            const completed = interviews.some((i: any) => i.candidate.id === candidate.id && i.status === 'completed');
+            if (completed) {
+              setAlreadyCompleted(true);
+              toast({
+                title: "Interview Already Completed",
+                description: "You have already completed your interview. You cannot upload another resume.",
+                variant: "destructive"
+              });
+              setTimeout(() => {
+                localStorage.removeItem('user');
+                sessionStorage.clear();
+                setLocation('/login');
+              }, 2000);
+            }
+          });
+        }
+      });
     }
   }, [setLocation, toast]);
 
@@ -165,6 +193,14 @@ export default function InterviewUpload() {
   // };
 
   if (blockAdmin) return null;
+  if (alreadyCompleted) {
+    return (
+      <div className="max-w-2xl mx-auto mt-24 text-center">
+        <h2 className="text-2xl font-bold mb-4 text-red-600">Interview Already Completed</h2>
+        <p className="text-lg text-gray-700 mb-8">You have already completed your interview. You cannot upload another resume or take the interview again.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto">
