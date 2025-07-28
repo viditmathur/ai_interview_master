@@ -40,7 +40,7 @@ export default function AdminDashboard() {
     const user = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user') || 'null') : null;
     if (!user || user.role !== 'admin') {
       alert("You don't have admin rights.");
-      window.location.href = '/dashboard';
+      window.location.href = '/login';
     }
   }, []);
 

@@ -295,10 +295,12 @@ export default function InterviewSession() {
         }));
         toast({
           title: "Interview Complete!",
-          description: "Redirecting to your results dashboard..."
+          description: "Thank you for completing your interview. You will be logged out."
         });
         setTimeout(() => {
-          setLocation('/dashboard');
+          localStorage.removeItem('user');
+          sessionStorage.clear();
+          setLocation('/login');
         }, 2000);
       } else {
         const updatedData = {

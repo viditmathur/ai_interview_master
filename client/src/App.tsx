@@ -5,7 +5,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Brain, Mic, BarChart3, Settings, Bell } from 'lucide-react';
 import InterviewUpload from "@/pages/interview-upload";
 import InterviewSession from "@/pages/interview-session";
-import CandidateDashboard from "@/pages/candidate-dashboard";
 import AdminDashboard from "@/pages/admin-dashboard";
 import NotFound from "@/pages/not-found";
 import SignupPage from "@/pages/signup";
@@ -22,7 +21,11 @@ function LandingRedirect() {
   React.useEffect(() => {
     const user = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user') || 'null') : null;
     if (user) {
-      setLocation('/interview-upload');
+      if (user.role === 'admin') {
+        setLocation('/admin');
+      } else {
+        setLocation('/interview-upload');
+      }
     }
     // else, stay on login page
   }, [setLocation]);
@@ -34,7 +37,6 @@ function Router() {
     <Switch>
       <Route path="/" component={LandingRedirect} />
       <Route path="/interview" component={InterviewSession} />
-      <Route path="/dashboard" component={CandidateDashboard} />
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/signup" component={SignupPage} />
       <Route path="/login" component={LoginPage} />
@@ -99,7 +101,6 @@ function Navigation() {
           <nav className="hidden md:flex space-x-8">
             <a href="/" className="text-primary pb-4 font-medium flex items-center">Home</a>
             <a href="/interview" className="text-gray-500 hover:text-gray-700 pb-4 font-medium flex items-center">Interview</a>
-            <a href="/dashboard" className="text-gray-500 hover:text-gray-700 pb-4 font-medium flex items-center">Dashboard</a>
             {user && user.role === 'admin' && (
               <a href="/admin" className="text-gray-500 hover:text-gray-700 pb-4 font-medium flex items-center">Admin Console</a>
             )}
@@ -155,7 +156,6 @@ function SidebarLayout({ children }: { children: React.ReactNode }) {
     : [
         { label: 'Upload Resume', path: '/upload' },
         { label: 'Interview', path: '/interview' },
-        { label: 'Results/History', path: '/dashboard' },
       ];
   return (
     <div className="flex min-h-screen">
@@ -219,7 +219,6 @@ export default function App() {
           {/* Candidate routes */}
           <Route path="/upload" component={InterviewUpload} />
           <Route path="/interview" component={InterviewSession} />
-          <Route path="/dashboard" component={CandidateDashboard} />
           {/* Admin route */}
           <Route path="/admin" component={AdminDashboard} />
           {/* Fallback */}

@@ -3,13 +3,21 @@ import { useLocation } from 'wouter';
 import { getInterviewResults } from '@/lib/api';
 
 export default function AdminInterviewResults() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const id = Number(location.split('/').pop());
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    // Check if user is admin
+    const user = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user') || 'null') : null;
+    if (!user || user.role !== 'admin') {
+      setError('Access denied. Admin privileges required.');
+      setLoading(false);
+      return;
+    }
+
     getInterviewResults(id)
       .then(setData)
       .catch(() => setError('Failed to fetch interview results'))

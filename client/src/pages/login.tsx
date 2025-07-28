@@ -27,7 +27,7 @@ export default function Login() {
         if (data.role === 'admin') {
           setLocation('/admin');
         } else {
-          setLocation('/dashboard');
+          setLocation('/interview-upload');
         }
       }
     } catch (err) {
