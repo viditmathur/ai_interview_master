@@ -21,5 +21,5 @@
   },
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "installCommand": "npm install --legacy-peer-deps"
+  "installCommand": "npm install --legacy-peer-deps && cd client && npm install --legacy-peer-deps"
 } 
