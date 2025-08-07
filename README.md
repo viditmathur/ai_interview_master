@@ -51,3 +51,4 @@ Required environment variables for deployment:
 ## License
 
 MIT License# Force Vercel deployment update
+# Force fresh Vercel deployment with client build fixes
