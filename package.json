@@ -12,7 +12,8 @@
     "vercel-build": "npm run build",
     "db:push": "npx drizzle-kit push",
     "db:generate": "npx drizzle-kit generate",
-    "db:migrate": "npx drizzle-kit migrate"
+    "db:migrate": "npx drizzle-kit migrate",
+    "install-deps": "npm install --legacy-peer-deps"
   },
   "dependencies": {
     "@types/express": "^4.17.21",
@@ -23,7 +24,7 @@
     "multer": "^1.4.5-lts.1",
     "pdf-parse": "^1.1.1",
     "openai": "^4.20.1",
-    "drizzle-orm": "^0.29.3",
+    "drizzle-orm": "^0.44.3",
     "postgres": "^3.4.3",
     "nanoid": "^5.0.4",
     "bcrypt": "^5.1.1",
@@ -42,5 +43,8 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "overrides": {
+    "@types/react": "^18.2.0"
   }
 }
