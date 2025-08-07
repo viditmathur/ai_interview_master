@@ -1,0 +1,38 @@
+SARAH JOHNSON
+Software Engineer
+sarah.johnson@email.com
++1-555-987-6543
+
+PROFESSIONAL SUMMARY
+Experienced software engineer with 5+ years of experience in full-stack development, specializing in React, Node.js, and cloud technologies. Passionate about building scalable applications and mentoring junior developers.
+
+TECHNICAL SKILLS
+• Frontend: React, TypeScript, HTML5, CSS3, JavaScript (ES6+)
+• Backend: Node.js, Express.js, Python, Django
+• Databases: PostgreSQL, MongoDB, Redis
+• Cloud: AWS, Docker, Kubernetes
+• Tools: Git, Jest, Webpack, CI/CD pipelines
+
+WORK EXPERIENCE
+Senior Software Engineer (2022-2024)
+TechCorp Inc.
+• Led development of microservices architecture serving 1M+ users
+• Implemented automated testing and deployment processes
+• Mentored 3 junior developers and conducted code reviews
+• Reduced API response time by 40% through optimization
+
+Software Developer (2020-2022)
+StartupXYZ LLC
+• Built responsive web applications with React and Node.js
+• Worked with databases and API integrations
+• Participated in agile development processes
+• Contributed to technical documentation and best practices
+
+EDUCATION
+Bachelor of Science in Computer Science
+University of Technology (2016-2020)
+
+PROJECTS
+• E-commerce Platform: Full-stack application with React frontend and Node.js backend
+• Task Management Tool: Real-time collaboration application using WebSocket technology
+• Mobile-First Website: Responsive design optimized for mobile devices 

@@ -20,6 +20,49 @@ export default function Signup() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [invitationToken, setInvitationToken] = useState('');
+  const [invitationData, setInvitationData] = useState<any>(null);
+  const [invitationError, setInvitationError] = useState<string | null>(null);
+
+  // Check for invitation token in URL
+  React.useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    setInvitationToken(token || '');
+    if (token) {
+      fetch(`/api/invitations/${token}`)
+        .then(async (res) => {
+          if (!res.ok) {
+            throw new Error('Invitation not found');
+          }
+          return res.json();
+        })
+        .then((data) => {
+          setInvitationData(data);
+          setEmail(data.email || '');
+          setInvitationError(null);
+        })
+        .catch(() => {
+          setInvitationError('Invitation link is invalid or expired. Please contact your administrator.');
+        });
+    }
+  }, []);
+
+  const fetchInvitationData = async (token: string) => {
+    try {
+      const response = await fetch(`/api/invitations/${token}`);
+      if (response.ok) {
+        const data = await response.json();
+        setInvitationData(data);
+        // Pre-fill email if available
+        if (data.email) {
+          setEmail(data.email);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch invitation data:', error);
+    }
+  };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,16 +86,25 @@ export default function Signup() {
     }
     setLoading(true);
     try {
+      const signupData: any = { name, number, email, password };
+      if (invitationToken) {
+        signupData.invitationToken = invitationToken;
+      }
+      
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, number, email, password })
+        body: JSON.stringify(signupData)
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data.message || 'Signup failed');
       } else {
-        setLocation('/login');
+        if (invitationToken) {
+          setLocation('/interview');
+        } else {
+          setLocation('/login');
+        }
       }
     } catch (err) {
       setError('Signup failed');
@@ -69,7 +121,35 @@ export default function Signup() {
           <span className="font-extrabold text-xl tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-blue-600 to-purple-500 mt-2">FirstroundAI</span>
         </div>
         <h2 className="text-2xl font-bold mb-6 text-center">Sign Up</h2>
-        {error && <div className="mb-4 text-red-600 text-center">{error}</div>}
+        {invitationError && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-center">
+            {invitationError}
+          </div>
+        )}
+        {invitationData && (
+          <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h3 className="font-semibold text-blue-900 mb-2">Interview Invitation</h3>
+            <p className="text-sm text-blue-700 mb-1">
+              <strong>Job Role:</strong> {invitationData.jobRole}
+            </p>
+            <p className="text-sm text-blue-700 mb-1">
+              <strong>Required Skills:</strong> {invitationData.skillset}
+            </p>
+            <p className="text-sm text-blue-700">
+              Please complete your registration to start the interview.
+            </p>
+          </div>
+        )}
+        {error && (
+          <div className="mb-4 text-red-600 text-center">
+            {error}
+            {(error.includes('already have an account') || error.includes('You already have an account')) && (
+              <div className="mt-2">
+                <a href="/login" className="text-blue-600 underline">Go to Login</a>
+              </div>
+            )}
+          </div>
+        )}
         <div className="mb-4">
           <label className="block mb-1 text-sm font-medium">Name</label>
           <input

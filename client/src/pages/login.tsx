@@ -27,7 +27,18 @@ export default function Login() {
         if (data.role === 'admin') {
           setLocation('/admin');
         } else {
-          setLocation('/interview-upload');
+          // Fetch candidate record to check if invited
+          fetch(`/api/admin/candidates`)
+            .then(res => res.json())
+            .then(candidates => {
+              const candidate = candidates.find((c: any) => c.email === email);
+              if (candidate && candidate.invited) {
+                setLocation('/interview');
+              } else {
+                setLocation('/upload');
+              }
+            })
+            .catch(() => setLocation('/upload'));
         }
       }
     } catch (err) {

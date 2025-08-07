@@ -104,6 +104,21 @@ export default function InterviewUpload() {
     }
   }, [setLocation, toast]);
 
+  useEffect(() => {
+    // Check if user is invited
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    if (user && user.role === 'candidate') {
+      fetch('/api/admin/candidates')
+        .then(res => res.json())
+        .then(candidates => {
+          const candidate = candidates.find((c: any) => c.email === user.email);
+          if (candidate && candidate.invited) {
+            setLocation('/interview-session');
+          }
+        });
+    }
+  }, [setLocation]);
+
   // Remove all state and handlers related to resume intelligence preview
   // const [resumeIntel, setResumeIntel] = useState<any>(null);
   // const [intelLoading, setIntelLoading] = useState(false);

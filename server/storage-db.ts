@@ -192,6 +192,9 @@ export class DatabaseStorage implements IStorage {
     await db.delete(interviews).where(eq(interviews.id, id));
   }
   async deleteCandidate(id: number): Promise<void> {
+    // With ON DELETE CASCADE foreign key constraints, the database will automatically
+    // delete all related records (interviews, answers, evaluations, invitations)
+    // when the candidate is deleted
     await db.delete(candidates).where(eq(candidates.id, id));
   }
   async deleteAnswersByInterview(interviewId: number): Promise<void> {
@@ -262,5 +265,51 @@ export class DatabaseStorage implements IStorage {
       };
     }
     return stats;
+  }
+
+  // Invitation operations - using in-memory storage for now
+  async createInvitation(invitation: { 
+    candidateId: number | null; 
+    email: string; 
+    token: string; 
+    jobRole: string; 
+    skillset: string; 
+    status: string;
+    candidateInfo?: {
+      name: string;
+      email: string;
+      phone: string;
+      resumeText: string;
+    };
+  }): Promise<any> {
+    const [result] = await sql`
+      INSERT INTO invitations (candidate_id, email, token, job_role, skillset, status, candidate_info, created_at, updated_at)
+      VALUES (${invitation.candidateId}, ${invitation.email}, ${invitation.token}, ${invitation.jobRole}, ${invitation.skillset}, ${invitation.status}, ${JSON.stringify(invitation.candidateInfo)}, NOW(), NOW())
+      RETURNING *
+    `;
+    return result;
+  }
+
+  async getInvitationByToken(token: string): Promise<any | undefined> {
+    const result = await sql`
+      SELECT * FROM invitations WHERE token = ${token}
+    `;
+    return result[0];
+  }
+
+  async updateInvitationStatus(token: string, status: string): Promise<void> {
+    await sql`
+      UPDATE invitations SET status = ${status}, updated_at = NOW() WHERE token = ${token}
+    `;
+  }
+
+  async getAllInvitations(): Promise<any[]> {
+    return await sql`
+      SELECT * FROM invitations ORDER BY created_at DESC
+    `;
+  }
+
+  async deleteUserByEmail(email: string): Promise<void> {
+    await db.delete(users).where(eq(users.email, email));
   }
 }

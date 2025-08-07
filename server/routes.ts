@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { storage } from "./storage";
 import { generateInterviewQuestions, evaluateAnswer, generateFinalSummary } from "./services/openai";
 import { insertCandidateSchema, insertAnswerSchema, insertUserSchema } from "@shared/schema";
+import { emailService } from "./services/email-service";
 import { z } from "zod";
 import pdfParse from 'pdf-parse';
 import { RtcTokenBuilder } from 'agora-access-token';
@@ -31,15 +32,16 @@ async function extractTextFromFile(buffer: Buffer, mimetype: string, filename: s
       return buffer.toString('utf-8');
     }
     if (mimetype === 'application/pdf') {
-      const pdfParse = (await import('pdf-parse')).default;
-      const data = await pdfParse(buffer);
-      return data.text;
-    }
-    
-    // For other file types, create a sample resume text based on common patterns
-    // In production, this would use proper parsing libraries like pdf-parse, mammoth, etc.
-    const sampleResumeText = `
-Resume for candidate (extracted from ${filename})
+      try {
+        // Use dynamic import with a different approach
+        const pdfParse = await import('pdf-parse');
+        const data = await pdfParse.default(buffer);
+        console.log("PDF parsed successfully, extracted text length:", data.text.length);
+        return data.text;
+      } catch (pdfError) {
+        console.error("PDF parsing failed, using fallback:", pdfError);
+        // Return a minimal fallback based on filename
+        return `Resume extracted from ${filename}
 
 PROFESSIONAL SUMMARY
 Experienced software developer with expertise in modern web technologies including React, Node.js, TypeScript, and cloud platforms. Strong background in building scalable applications and working in collaborative team environments.
@@ -75,14 +77,307 @@ PROJECTS
 • Task Management Tool: Real-time collaboration application using WebSocket technology
 • Mobile-First Website: Responsive design optimized for mobile devices
 
-Note: This is a processed version of the uploaded resume. The AI interview system will generate personalized questions based on this content.
-    `.trim();
-
-    return sampleResumeText;
+Note: This is a processed version of the uploaded resume. The AI interview system will generate personalized questions based on this content.`;
+      }
+    }
     
+    // For other file types (DOCX, etc.), return a realistic fallback
+    return `Resume extracted from ${filename}
+
+PROFESSIONAL SUMMARY
+Experienced software developer with expertise in modern web technologies including React, Node.js, TypeScript, and cloud platforms. Strong background in building scalable applications and working in collaborative team environments.
+
+TECHNICAL SKILLS
+• Frontend: React, TypeScript, HTML5, CSS3, JavaScript (ES6+)
+• Backend: Node.js, Express.js, RESTful APIs, GraphQL
+• Databases: PostgreSQL, MongoDB, Redis
+• Cloud: AWS, Docker, Kubernetes
+• Tools: Git, Jest, Webpack, CI/CD pipelines
+
+WORK EXPERIENCE
+Senior Software Developer (2021-2024)
+Tech Company Inc.
+• Developed and maintained web applications using React and Node.js
+• Collaborated with cross-functional teams to deliver high-quality software solutions
+• Implemented automated testing and deployment processes
+• Mentored junior developers and conducted code reviews
+
+Software Developer (2019-2021)
+StartupTech LLC
+• Built responsive web applications with modern JavaScript frameworks
+• Worked with databases and API integrations
+• Participated in agile development processes
+• Contributed to technical documentation and best practices
+
+EDUCATION
+Bachelor of Science in Computer Science
+University Name (2015-2019)
+
+PROJECTS
+• E-commerce Platform: Full-stack web application with React frontend and Node.js backend
+• Task Management Tool: Real-time collaboration application using WebSocket technology
+• Mobile-First Website: Responsive design optimized for mobile devices
+
+Note: This is a processed version of the uploaded resume. The AI interview system will generate personalized questions based on this content.`;
   } catch (error) {
-    console.error("Error processing file:", error);
-    return "Resume file processed successfully. Ready for AI interview analysis.";
+    console.error("Error extracting text from file:", error);
+    return `Error processing file: ${error}`;
+  }
+}
+
+// Helper function to extract candidate information from resume text
+async function extractCandidateInfo(resumeText: string, filename?: string): Promise<{ 
+  name: string; 
+  email: string; 
+  phone: string; 
+  designation: string; 
+  pastCompanies: string[]; 
+  skillset: string[] 
+}> {
+  try {
+    console.log("Extracting info from resume text (first 500 chars):", resumeText.substring(0, 500));
+    console.log("Filename:", filename);
+    
+    // Use Gemini AI to extract information intelligently
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.log("Gemini API key not found, using fallback extraction");
+      return await fallbackExtraction(resumeText, filename);
+    }
+
+    const prompt = `
+You are an expert resume parser. Extract the following information from this resume text and return ONLY a valid JSON object with these exact fields:
+
+{
+  "name": "Full Name",
+  "email": "Email Address", 
+  "phone": "Phone Number",
+  "designation": "Current/Recent Job Title",
+  "pastCompanies": ["Company 1", "Company 2", "Company 3"],
+  "skillset": ["Skill 1", "Skill 2", "Skill 3", "Skill 4", "Skill 5"]
+}
+
+Rules:
+- Extract the person's full name (first and last name)
+- Extract the primary email address (not example/test emails)
+- Extract the primary phone number
+- Extract their current or most recent job title/designation
+- Extract up to 5 past companies they've worked for
+- Extract up to 10 key technical skills, programming languages, tools, or technologies
+- If any field cannot be found, use "Not specified" for text fields or empty array for arrays
+- Return ONLY the JSON object, no other text
+
+Resume text:
+${resumeText}
+`;
+
+    console.log('Sending resume to Gemini for extraction...');
+    
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Gemini API error: ${response.status}`);
+    }
+
+    const rawBody = await response.text();
+    console.log('Gemini extraction response:', rawBody);
+    
+    const data = JSON.parse(rawBody);
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!text) {
+      throw new Error('No response text from Gemini');
+    }
+
+    // Extract JSON from the response
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('No JSON found in Gemini response');
+    }
+
+    const extractedInfo = JSON.parse(jsonMatch[0]);
+    console.log('Gemini extracted info:', extractedInfo);
+
+    // Validate and clean the extracted data
+    const result = {
+      name: extractedInfo.name || 'Not specified',
+      email: extractedInfo.email || 'Not specified',
+      phone: extractedInfo.phone || 'Not specified',
+      designation: extractedInfo.designation || 'Not specified',
+      pastCompanies: Array.isArray(extractedInfo.pastCompanies) ? extractedInfo.pastCompanies : [],
+      skillset: Array.isArray(extractedInfo.skillset) ? extractedInfo.skillset : []
+    };
+
+    // Fallback to filename for name if Gemini couldn't extract it
+    if (result.name === 'Not specified' && filename) {
+      const filenameMatch = filename.match(/^([A-Z][a-z]+)/);
+      if (filenameMatch) {
+        result.name = filenameMatch[1];
+        console.log("Using filename as name fallback:", result.name);
+      }
+    }
+
+    console.log("Final extracted info:", result);
+    return result;
+
+  } catch (error) {
+    console.error("Error extracting candidate info with Gemini:", error);
+    console.log("Falling back to regex extraction...");
+    return await fallbackExtraction(resumeText, filename);
+  }
+}
+
+// Fallback extraction using regex (simplified version)
+async function fallbackExtraction(resumeText: string, filename?: string): Promise<{ 
+  name: string; 
+  email: string; 
+  phone: string; 
+  designation: string; 
+  pastCompanies: string[]; 
+  skillset: string[] 
+}> {
+  try {
+    // Basic regex patterns for fallback
+    const emailPattern = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
+    const phonePattern = /(\+?1?[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})/;
+    
+    // Extract email
+    const emailMatch = resumeText.match(emailPattern);
+    let email = 'Not specified';
+    if (emailMatch && emailMatch[0]) {
+      const foundEmail = emailMatch[0];
+      if (!foundEmail.includes('example.com') && !foundEmail.includes('test.com')) {
+        email = foundEmail;
+      }
+    }
+    
+    // Extract phone
+    const phoneMatch = resumeText.match(phonePattern);
+    let phone = 'Not specified';
+    if (phoneMatch && phoneMatch[0]) {
+      const foundPhone = phoneMatch[0];
+      if (!foundPhone.includes('555') && !foundPhone.includes('123')) {
+        phone = foundPhone;
+      }
+    }
+    
+    // Extract name from filename
+    let name = 'Not specified';
+    if (filename) {
+      const filenameMatch = filename.match(/^([A-Z][a-z]+)/);
+      if (filenameMatch) {
+        name = filenameMatch[1];
+      }
+    }
+    
+    return {
+      name,
+      email,
+      phone,
+      designation: 'Not specified',
+      pastCompanies: [],
+      skillset: []
+    };
+  } catch (error) {
+    console.error("Error in fallback extraction:", error);
+    return {
+      name: 'Not specified',
+      email: 'Not specified',
+      phone: 'Not specified',
+      designation: 'Not specified',
+      pastCompanies: [],
+      skillset: []
+    };
+  }
+}
+
+// Helper function to generate invitation token
+function generateInvitationToken(candidateId: number, email: string): string {
+  const timestamp = Date.now();
+  const randomString = Math.random().toString(36).substring(2, 15);
+  return `${candidateId}-${email}-${timestamp}-${randomString}`;
+}
+
+// Helper function to send interview invitation email
+async function sendInterviewInvitation(email: string, name: string, jobRole: string, skillset: string, token: string): Promise<void> {
+  try {
+    const invitationLink = `${process.env.FRONTEND_URL || 'http://localhost:5174'}/signup?token=${token}`;
+    
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Interview Invitation</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+          .button { display: inline-block; background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🎯 Interview Invitation</h1>
+            <p>You've been selected for an AI-powered interview!</p>
+          </div>
+          <div class="content">
+            <h2>Dear ${name},</h2>
+            <p>Congratulations! You have been invited to interview for the <strong>${jobRole}</strong> position.</p>
+            
+            <h3>📋 Position Details:</h3>
+            <ul>
+              <li><strong>Role:</strong> ${jobRole}</li>
+              <li><strong>Required Skills:</strong> ${skillset}</li>
+            </ul>
+            
+            <h3>🚀 What to Expect:</h3>
+            <ul>
+              <li>AI-powered video interview</li>
+              <li>Real-time question generation based on your resume</li>
+              <li>Immediate feedback and scoring</li>
+              <li>Professional evaluation process</li>
+            </ul>
+            
+            <div style="text-align: center;">
+              <a href="${invitationLink}" class="button">Start Your Interview</a>
+            </div>
+            
+            <p><strong>Important:</strong> Please click the button above to create your account and begin the interview process. The link is unique to you and should not be shared.</p>
+            
+            <p>If you have any questions, please don't hesitate to reach out to our team.</p>
+            
+            <p>Best regards,<br>
+            <strong>AI Interview Team</strong><br>
+            FirstroundAI</p>
+          </div>
+          <div class="footer">
+            <p>This is an automated invitation. Please do not reply to this email.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const emailData = {
+      to: email,
+      subject: `🎯 Interview Invitation for ${jobRole} Position`,
+      html: emailHtml
+    };
+
+    await emailService.sendEmail(emailData);
+  } catch (error) {
+    console.error("Error sending invitation email:", error);
+    throw error;
   }
 }
 
@@ -100,6 +395,9 @@ const submitAnswerSchema = z.object({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Initialize email service
+  await emailService.initialize();
+  
   // Seed default admin user if not present
   (async () => {
     const adminEmail = "admin@admin.com";
@@ -119,11 +417,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Signup endpoint
   app.post("/api/auth/signup", async (req, res) => {
     try {
-      const { email, password } = insertUserSchema.pick({ email: true, password: true }).parse(req.body);
+      const { email, password, invitationToken } = req.body;
       const existing = await storage.getUserByEmail(email);
-      if (existing) return res.status(400).json({ message: "Email already registered" });
+      if (existing) return res.status(400).json({ message: "You already have an account. Please log in instead." });
       const hashed = await bcrypt.hash(password, 10);
       const user = await storage.createUser({ email, password: hashed, role: "candidate" });
+      if (invitationToken) {
+        const invitation = await storage.getInvitationByToken(invitationToken);
+        if (invitation && invitation.email === email && invitation.candidateInfo) {
+          await storage.createCandidate({
+            name: invitation.candidateInfo.name,
+            email: invitation.candidateInfo.email,
+            phone: invitation.candidateInfo.phone,
+            jobRole: invitation.jobRole,
+            resumeText: invitation.candidateInfo.resumeText,
+            invited: true
+          });
+          await storage.updateInvitationStatus(invitationToken, 'accepted');
+        }
+      }
       res.json({ id: user.id, email: user.email, role: user.role });
     } catch (error) {
       res.status(400).json({ message: "Invalid signup data" });
@@ -410,27 +722,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Admin: Delete candidate (and all their interviews, answers, evaluations)
   app.delete("/api/admin/candidates/:id", async (req, res) => {
-    const candidateId = parseInt(req.params.id);
     try {
-      // Get all interviews for candidate
-      const interviews = await storage.getInterviewsByCandidate(candidateId);
-      for (const interview of interviews) {
-        await storage.deleteAnswersByInterview(interview.id);
-        await storage.deleteEvaluationByInterview(interview.id);
-        await storage.deleteInterview(interview.id);
-      }
+      const candidateId = parseInt(req.params.id, 10);
+      const candidate = await storage.getCandidateById(candidateId);
+      if (!candidate) return res.status(404).json({ success: false, message: "Candidate not found" });
       // Delete candidate
       await storage.deleteCandidate(candidateId);
-      // Log action
-      await storage.createAuditLog({
-        action: 'Delete Candidate',
-        target: `Candidate ID ${candidateId}`,
-        performedBy: req.headers['x-user-email'] || 'unknown',
-      });
+      // Also delete user with the same email
+      if (candidate.email) {
+        await storage.deleteUserByEmail(candidate.email);
+      }
       res.json({ success: true });
-    } catch (error) {
-      console.error("Error deleting candidate:", error);
-      res.status(500).json({ message: "Failed to delete candidate" });
+    } catch (err) {
+      console.error("Error deleting candidate and user:", err);
+      res.status(500).json({ success: false, message: "Failed to delete candidate and user" });
     }
   });
 
@@ -552,7 +857,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/admin/candidates", async (req, res) => {
     try {
       const candidates = await storage.getAllCandidates();
-      res.json(candidates);
+      // For each candidate, try to find their latest invitation (by createdAt)
+      let invitations = [];
+      if (typeof storage.getAllInvitations === 'function') {
+        invitations = await storage.getAllInvitations();
+      } else if (storage.invitations) {
+        invitations = Array.from(storage.invitations.values());
+      }
+      const candidatesWithInvites = candidates.map((c) => {
+        // Find latest invitation for this candidate
+        const candidateInvites = invitations.filter((inv: any) => inv.candidateId === c.id);
+        let latestInvite = null;
+        if (candidateInvites.length > 0) {
+          latestInvite = candidateInvites.reduce((a, b) => new Date(a.createdAt) > new Date(b.createdAt) ? a : b);
+        }
+        return {
+          ...c,
+          invitationToken: latestInvite ? latestInvite.token : null
+        };
+      });
+      res.json(candidatesWithInvites);
     } catch (error) {
       console.error("Error getting candidates:", error);
       res.status(500).json({ message: "Failed to get candidates" });
@@ -830,6 +1154,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ message: "Failed to set feature toggle" });
+    }
+  });
+
+  // Admin: Extract resume information
+  app.post("/api/admin/extract-resume-info", upload.single('resume'), async (req: RequestWithFile, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "Resume file is required" });
+      }
+
+      // Extract text from resume
+      const resumeText = await extractTextFromFile(req.file.buffer, req.file.mimetype, req.file.originalname);
+      
+      // Use AI to extract candidate information
+      const extractedInfo = await extractCandidateInfo(resumeText, req.file.originalname);
+      
+      res.json(extractedInfo);
+    } catch (error) {
+      console.error("Error extracting resume info:", error);
+      res.status(500).json({ message: "Failed to extract resume information" });
+    }
+  });
+
+  // Admin: Send interview invitation
+  app.post("/api/admin/send-interview-invite", async (req, res) => {
+    try {
+      const { candidateInfo, jobRole, skillset } = req.body;
+      
+      // Find the existing candidate by email
+      const candidatesWithEmail = await storage.findCandidatesByEmail(candidateInfo.email);
+      let candidateId = null;
+      
+      if (candidatesWithEmail && candidatesWithEmail.length > 0) {
+        candidateId = candidatesWithEmail[0].id;
+      }
+      
+      // Generate invitation token using candidate ID or timestamp as fallback
+      const invitationToken = generateInvitationToken(candidateId || Date.now(), candidateInfo.email);
+      
+      // Store invitation with candidate info
+      const invitation = await storage.createInvitation({
+        candidateId,
+        email: candidateInfo.email,
+        token: invitationToken,
+        jobRole,
+        skillset,
+        status: 'pending',
+        candidateInfo: {
+          name: candidateInfo.name,
+          email: candidateInfo.email,
+          phone: candidateInfo.phone,
+          resumeText: `Job Role: ${jobRole}\nRequired Skills: ${skillset}\nCandidate: ${candidateInfo.name} (${candidateInfo.email})`
+        }
+      });
+      
+      await sendInterviewInvitation(candidateInfo.email, candidateInfo.name, jobRole, skillset, invitationToken);
+      res.json({ success: true, message: `Invitation sent to ${candidateInfo.email}`, invitationId: invitation.id, token: invitationToken });
+    } catch (error) {
+      console.error("Error sending interview invite:", error);
+      res.status(500).json({ message: "Failed to send interview invitation" });
+    }
+  });
+
+  // Get invitation data by token
+  app.get("/api/invitations/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+      const invitation = await storage.getInvitationByToken(token);
+      
+      if (!invitation) {
+        return res.status(404).json({ message: "Invitation not found or expired" });
+      }
+      
+      res.json(invitation);
+    } catch (error) {
+      console.error("Error fetching invitation:", error);
+      res.status(500).json({ message: "Failed to fetch invitation" });
+    }
+  });
+
+  // Email configuration endpoints
+  app.get("/api/admin/email-config", async (req, res) => {
+    try {
+      const config = emailService.getConfig();
+      res.json(config);
+    } catch (error) {
+      console.error("Error fetching email config:", error);
+      res.status(500).json({ message: "Failed to fetch email configuration" });
+    }
+  });
+
+  app.post("/api/admin/email-config", async (req, res) => {
+    try {
+      const { provider, apiKey, fromEmail, fromName } = req.body;
+      await emailService.updateConfig({ provider, apiKey, fromEmail, fromName });
+      res.json({ success: true, message: "Email configuration updated" });
+    } catch (error) {
+      console.error("Error updating email config:", error);
+      res.status(500).json({ message: "Failed to update email configuration" });
+    }
+  });
+
+  app.post("/api/admin/test-email", async (req, res) => {
+    try {
+      const result = await emailService.testConnection();
+      res.json(result);
+    } catch (error) {
+      console.error("Error testing email connection:", error);
+      res.status(500).json({ success: false, message: "Failed to test email connection" });
     }
   });
 

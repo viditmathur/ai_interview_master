@@ -36,6 +36,7 @@ export default function InterviewSession() {
   const [timerActive, setTimerActive] = useState(false);
   const [questionLocked, setQuestionLocked] = useState(false);
   const [consentOpen, setConsentOpen] = useState(true);
+  const [interviewCompleted, setInterviewCompleted] = useState(false);
 
   // Remove timer start on question change
   useEffect(() => {
@@ -176,13 +177,76 @@ export default function InterviewSession() {
           } else {
             // Interview not in progress, redirect
             sessionStorage.clear();
-            setLocation('/interview-upload');
+            setLocation('/upload');
           }
         });
         return;
       } else {
-        sessionStorage.clear();
-        setLocation('/interview-upload');
+        // No existing interview, check if candidate is invited and create new interview
+        const candidateEmail = parsedUser.email;
+        fetch('/api/admin/candidates')
+          .then(res => res.json())
+          .then(candidates => {
+            const candidate = candidates.find((c: any) => c.email === candidateEmail);
+            if (candidate && candidate.invited) {
+              // Create new interview for invited candidate
+              const formData = new FormData();
+              formData.append('name', candidate.name || 'Invited Candidate');
+              formData.append('email', candidate.email);
+              formData.append('phone', candidate.phone || 'N/A');
+              formData.append('jobRole', candidate.jobRole || 'N/A');
+              
+              fetch('/api/interviews/start', {
+                method: 'POST',
+                body: formData
+              })
+              .then(res => res.json())
+              .then(data => {
+                if (data.interviewId) {
+                  setInterviewData({
+                    interviewId: data.interviewId,
+                    candidateId: data.candidateId,
+                    questions: data.questions,
+                    currentQuestionIndex: 0,
+                    candidateName: candidate.name || '',
+                    candidateRole: candidate.jobRole || '',
+                    candidatePhone: candidate.phone || '',
+                  });
+                  // Store interview data
+                  sessionStorage.setItem('currentInterview', JSON.stringify({
+                    interviewId: data.interviewId,
+                    candidateId: data.candidateId,
+                    questions: data.questions,
+                    currentQuestionIndex: 0
+                  }));
+                } else {
+                  toast({
+                    title: "Failed to start interview",
+                    description: "Unable to create interview session.",
+                    variant: "destructive"
+                  });
+                  setLocation('/upload');
+                }
+              })
+              .catch(err => {
+                console.error('Error creating interview:', err);
+                toast({
+                  title: "Failed to start interview",
+                  description: "Unable to create interview session.",
+                  variant: "destructive"
+                });
+                setLocation('/upload');
+              });
+            } else {
+              // Not invited, redirect to upload
+              sessionStorage.clear();
+              setLocation('/upload');
+            }
+          })
+          .catch(() => {
+            sessionStorage.clear();
+            setLocation('/upload');
+          });
         return;
       }
     }
@@ -293,15 +357,11 @@ export default function InterviewSession() {
           interviewId: interviewData.interviewId,
           summary: response.summary
         }));
+        setInterviewCompleted(true);
         toast({
           title: "Interview Complete!",
-          description: "Thank you for completing your interview. You will be logged out."
+          description: "Thank you for completing your interview."
         });
-        setTimeout(() => {
-          localStorage.removeItem('user');
-          sessionStorage.clear();
-          setLocation('/login');
-        }, 2000);
       } else {
         const updatedData = {
           ...interviewData,
@@ -356,6 +416,13 @@ export default function InterviewSession() {
     }
   };
 
+  // Handle interview completion
+  const handleInterviewComplete = () => {
+    localStorage.removeItem('user');
+    sessionStorage.clear();
+    setLocation('/login');
+  };
+
   // Remove Ask Question, add Play Audio
   const playAudio = async () => {
     if (!interviewData) return;
@@ -380,9 +447,70 @@ export default function InterviewSession() {
     return <div>Loading...</div>;
   }
 
+  // Show completion page if interview is finished
+  if (interviewCompleted) {
+    return (
+      <div className="max-w-4xl mx-auto text-center py-12">
+        <div className="bg-white rounded-lg shadow-lg p-8">
+          <div className="mb-6">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Interview Completed!</h1>
+            <p className="text-lg text-gray-600 mb-6">
+              Thank you for completing your interview. Your responses have been recorded and will be evaluated.
+            </p>
+          </div>
+          
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
+            <h2 className="text-xl font-semibold text-blue-900 mb-3">What happens next?</h2>
+            <div className="text-left space-y-3 text-blue-800">
+              <div className="flex items-start">
+                <div className="w-6 h-6 bg-blue-200 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 mr-3">
+                  <span className="text-blue-700 text-sm font-medium">1</span>
+                </div>
+                <p>Your interview responses will be reviewed by our AI evaluation system</p>
+              </div>
+              <div className="flex items-start">
+                <div className="w-6 h-6 bg-blue-200 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 mr-3">
+                  <span className="text-blue-700 text-sm font-medium">2</span>
+                </div>
+                <p>A detailed evaluation report will be generated</p>
+              </div>
+              <div className="flex items-start">
+                <div className="w-6 h-6 bg-blue-200 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 mr-3">
+                  <span className="text-blue-700 text-sm font-medium">3</span>
+                </div>
+                <p>You will receive the results via email within 24-48 hours</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <button
+              onClick={handleInterviewComplete}
+              className="bg-primary text-white px-8 py-3 rounded-lg hover:bg-primary/90 transition-colors"
+            >
+              Return to Login
+            </button>
+            <p className="text-sm text-gray-500">
+              You will be logged out and redirected to the login page
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const currentQuestion = interviewData.questions[interviewData.currentQuestionIndex];
   const progress = ((interviewData.currentQuestionIndex + 1) / interviewData.questions.length) * 100;
   const questionTypes = ['Technical', 'Technical', 'Technical', 'Technical', 'Behavioral'];
+  
+  // Check if user is admin
+  const user = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user') || 'null') : null;
+  const isAdmin = user?.role === 'admin';
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -574,23 +702,25 @@ export default function InterviewSession() {
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-6">
-              <h4 className="font-medium text-gray-900 mb-4">Live Evaluation</h4>
-              <div className="space-y-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-900">{currentScore || '--'}</div>
-                  <div className="text-sm text-gray-600">Latest Score</div>
-                </div>
-                {latestFeedback && (
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <div className="text-xs text-gray-600 mb-1">Latest Feedback</div>
-                    <p className="text-sm text-gray-800">{latestFeedback}</p>
+          {isAdmin && (
+            <Card>
+              <CardContent className="p-6">
+                <h4 className="font-medium text-gray-900 mb-4">Live Evaluation</h4>
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-gray-900">{currentScore || '--'}</div>
+                    <div className="text-sm text-gray-600">Latest Score</div>
                   </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                  {latestFeedback && (
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <div className="text-xs text-gray-600 mb-1">Latest Feedback</div>
+                      <p className="text-sm text-gray-800">{latestFeedback}</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>

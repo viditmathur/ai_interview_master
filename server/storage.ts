@@ -58,6 +58,7 @@ export interface IStorage {
   updateAdminRole(email: string, adminRole: string): Promise<void>;
   addAdmin(email: string, password: string, adminRole: string): Promise<User>;
   removeAdmin(email: string): Promise<void>;
+  deleteUserByEmail(email: string): Promise<void>;
 
   // User operations
   createUser(user: InsertUser): Promise<User>;
@@ -73,6 +74,25 @@ export interface IStorage {
   getAuditLogs(filters?: { action?: string; performedBy?: string; date?: string }): Promise<any[]>;
   logTokenUsage(provider: string, tokens: number, cost: number, timestamp?: Date): Promise<void>;
   getTokenUsageStats(): Promise<any>;
+  
+  // Invitation operations
+  createInvitation(invitation: { 
+    candidateId: number | null; 
+    email: string; 
+    token: string; 
+    jobRole: string; 
+    skillset: string; 
+    status: string;
+    candidateInfo?: {
+      name: string;
+      email: string;
+      phone: string;
+      resumeText: string;
+    };
+  }): Promise<any>;
+  getInvitationByToken(token: string): Promise<any | undefined>;
+  updateInvitationStatus(token: string, status: string): Promise<void>;
+  getAllInvitations(): Promise<any[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -93,6 +113,7 @@ export class MemStorage implements IStorage {
 
   private auditLogs: any[] = [];
   private tokenUsage: any[] = [];
+  private invitations: Map<string, any> = new Map();
 
   async createCandidate(candidate: InsertCandidate): Promise<Candidate> {
     const id = this.candidateIdCounter++;
@@ -347,6 +368,57 @@ export class MemStorage implements IStorage {
   }
   async removeAdmin(email: string) {
     this.users.delete(email);
+  }
+
+  async deleteUserByEmail(email: string): Promise<void> {
+    for (const [id, user] of this.users) {
+      if (user.email === email) {
+        this.users.delete(id);
+        break;
+      }
+    }
+  }
+
+  // Invitation operations
+  async createInvitation(invitation: { 
+    candidateId: number | null; 
+    email: string; 
+    token: string; 
+    jobRole: string; 
+    skillset: string; 
+    status: string;
+    candidateInfo?: {
+      name: string;
+      email: string;
+      phone: string;
+      resumeText: string;
+    };
+  }): Promise<any> {
+    const newInvitation = {
+      id: Date.now(),
+      ...invitation,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    this.invitations.set(invitation.token, newInvitation);
+    return newInvitation;
+  }
+
+  async getInvitationByToken(token: string): Promise<any | undefined> {
+    return this.invitations.get(token);
+  }
+
+  async updateInvitationStatus(token: string, status: string): Promise<void> {
+    const invitation = this.invitations.get(token);
+    if (invitation) {
+      invitation.status = status;
+      invitation.updatedAt = new Date();
+      this.invitations.set(token, invitation);
+    }
+  }
+
+  async getAllInvitations(): Promise<any[]> {
+    return Array.from(this.invitations.values());
   }
 }
 

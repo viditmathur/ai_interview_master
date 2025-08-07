@@ -1,0 +1,23 @@
+# Database Configuration
+DATABASE_URL=postgresql://username:password@localhost:5432/interview_db
+
+# AI Services
+OPENAI_API_KEY=your-openai-api-key-here
+GEMINI_API_KEY=your-gemini-api-key-here
+
+# Email Service
+SENDGRID_API_KEY=your-sendgrid-api-key-here
+EMAIL_FROM=noreply@firstroundai.com
+
+# Voice Service
+ELEVENLABS_API_KEY=your-elevenlabs-api-key-here
+
+# Agora Video Service
+AGORA_APP_ID=your-agora-app-id-here
+AGORA_APP_CERTIFICATE=your-agora-app-certificate-here
+
+# JWT Secret
+JWT_SECRET=your-jwt-secret-here
+
+# Environment
+NODE_ENV=production 

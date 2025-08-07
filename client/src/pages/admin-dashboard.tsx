@@ -8,6 +8,7 @@ import { getAdminInterviews, getAdminStats, deleteInterview, getInterviewResults
 import React, { useEffect, useState } from 'react';
 import { useLocation } from 'wouter';
 import { deleteCandidate } from '@/lib/api';
+import { queryClient } from '@/lib/queryClient';
 
 export default function AdminDashboard() {
   const [queryString, setQueryString] = useState(window.location.search);
@@ -540,10 +541,17 @@ function CandidatesTable() {
     if (!window.confirm('Are you sure you want to delete this candidate and all their data?')) return;
     setDeletingId(id);
     try {
-      await fetch(`/api/admin/candidates/${id}`, { method: 'DELETE' });
-      refetch();
-    } catch {
-      alert('Failed to delete candidate');
+      const response = await fetch(`/api/admin/candidates/${id}`, { method: 'DELETE' });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      // Force a fresh refetch to update the UI
+      await refetch();
+      // Also invalidate any cached data
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/candidates'] });
+    } catch (error: any) {
+      console.error('Delete error:', error);
+      alert(`Failed to delete candidate: ${error?.message || 'Unknown error'}`);
     } finally {
       setDeletingId(null);
     }
@@ -559,6 +567,52 @@ function CandidatesTable() {
       alert('Failed to disqualify candidate');
     } finally {
       setDisqualifyingId(null);
+    }
+  };
+
+  const handleSendInvite = async (candidate: any) => {
+    try {
+      // Call the backend API to send invitation
+      const response = await fetch('/api/admin/send-interview-invite', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          candidateInfo: {
+            name: candidate.name,
+            email: candidate.email,
+            phone: candidate.phone || '+1-555-123-4567'
+          },
+          jobRole: candidate.jobRole || 'Software Engineer',
+          skillset: 'React, Node.js, TypeScript' // Default skillset, can be made configurable
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        alert(`Failed to send invitation: ${errorData.message}`);
+        return;
+      }
+
+      const result = await response.json();
+      
+      // Since you're using console mode, display the invitation URL
+      const invitationUrl = `${window.location.origin}/signup?token=${result.token || result.invitationId || result.id || 'generated-token'}`;
+      
+      console.log('=== INVITATION SENT ===');
+      console.log('Candidate:', candidate.name);
+      console.log('Email:', candidate.email);
+      console.log('Job Role:', candidate.jobRole);
+      console.log('Invitation URL:', invitationUrl);
+      console.log('Response:', result);
+      console.log('========================');
+      
+      alert(`Invitation sent to ${candidate.email}!\n\nCheck the console for the invitation URL.\n\nURL: ${invitationUrl}`);
+      
+    } catch (error) {
+      console.error('Error sending invitation:', error);
+      alert('Failed to send invitation. Please try again.');
     }
   };
 
@@ -597,6 +651,7 @@ function CandidatesTable() {
               {!c.disqualified && (
                 <Button size="sm" variant="ghost" onClick={() => handleDisqualify(c.id)} disabled={disqualifyingId === c.id}>Disqualify</Button>
               )}
+              <Button size="sm" variant="outline" onClick={() => handleSendInvite(c)}>Send Invite</Button>
             </td>
           </tr>
         ))}

@@ -6,6 +6,8 @@ import { Brain, Mic, BarChart3, Settings, Bell } from 'lucide-react';
 import InterviewUpload from "@/pages/interview-upload";
 import InterviewSession from "@/pages/interview-session";
 import AdminDashboard from "@/pages/admin-dashboard";
+import AdminResumeUpload from "@/pages/admin-resume-upload";
+import AdminEmailConfig from "@/pages/admin-email-config";
 import NotFound from "@/pages/not-found";
 import SignupPage from "@/pages/signup";
 import LoginPage from "@/pages/login";
@@ -13,6 +15,60 @@ import React, { useEffect } from "react";
 import AdminInterviewResults from "@/pages/admin-interview-results";
 import Signup from './pages/signup';
 import { Logo } from '@/components/Logo';
+
+// Protected route component for upload page
+function ProtectedUploadRoute() {
+  const [location, setLocation] = useLocation();
+  const [isInvitedCandidate, setIsInvitedCandidate] = React.useState(false);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const user = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user') || 'null') : null;
+
+  React.useEffect(() => {
+    if (user?.role === 'candidate' && user?.email) {
+      fetch('/api/admin/candidates')
+        .then(res => res.json())
+        .then(candidates => {
+          const candidate = candidates.find((c: any) => c.email === user.email);
+          const isInvited = candidate?.invited || false;
+          setIsInvitedCandidate(isInvited);
+          setIsLoading(false);
+          
+          // Redirect invited candidates to interview immediately
+          if (isInvited) {
+            console.log('Redirecting invited candidate to interview');
+            setLocation('/interview');
+            return;
+          }
+        })
+        .catch(() => {
+          setIsLoading(false);
+        });
+    } else {
+      setIsLoading(false);
+    }
+  }, [user, setLocation]);
+
+  // Separate useEffect for redirect after state is set
+  React.useEffect(() => {
+    if (isInvitedCandidate && !isLoading) {
+      console.log('Candidate is invited, redirecting to interview');
+      setLocation('/interview');
+    }
+  }, [isInvitedCandidate, isLoading, setLocation]);
+
+  // If we're still loading, show loading screen
+  if (isLoading) {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+  }
+
+  // If candidate is invited, show redirect message
+  if (isInvitedCandidate) {
+    return <div className="flex items-center justify-center min-h-screen">Redirecting to interview...</div>;
+  }
+
+  // Show upload page for non-invited candidates
+  return <InterviewUpload />;
+}
 
 const queryClient = new QueryClient();
 
@@ -24,7 +80,18 @@ function LandingRedirect() {
       if (user.role === 'admin') {
         setLocation('/admin');
       } else {
-        setLocation('/interview-upload');
+        // Check if candidate is invited
+        fetch('/api/admin/candidates')
+          .then(res => res.json())
+          .then(candidates => {
+            const candidate = candidates.find((c: any) => c.email === user.email);
+            if (candidate?.invited) {
+              setLocation('/interview');
+            } else {
+              setLocation('/upload');
+            }
+          })
+          .catch(() => setLocation('/upload')); // Fallback
       }
     }
     // else, stay on login page
@@ -37,10 +104,12 @@ function Router() {
     <Switch>
       <Route path="/" component={LandingRedirect} />
       <Route path="/interview" component={InterviewSession} />
+      <Route path="/upload" component={ProtectedUploadRoute} />
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/admin/upload-resume" component={AdminResumeUpload} />
+      <Route path="/admin/email-config" component={AdminEmailConfig} />
       <Route path="/signup" component={SignupPage} />
       <Route path="/login" component={LoginPage} />
-      <Route path="/interview-upload" component={InterviewUpload} />
       <Route path="/admin/interview/:id" component={AdminInterviewResults} />
       <Route component={NotFound} />
     </Switch>
@@ -139,21 +208,44 @@ function Footer() {
 
 function SidebarLayout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
+  const [isInvitedCandidate, setIsInvitedCandidate] = React.useState(false);
   const user = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user') || 'null') : null;
   const role = user?.role;
   const isAdmin = role === 'admin';
   const isCandidate = role === 'candidate';
+
+  // Check if candidate is invited
+  React.useEffect(() => {
+    if (isCandidate && user?.email) {
+      fetch('/api/admin/candidates')
+        .then(res => res.json())
+        .then(candidates => {
+          const candidate = candidates.find((c: any) => c.email === user.email);
+          setIsInvitedCandidate(candidate?.invited || false);
+        })
+        .catch(() => setIsInvitedCandidate(false));
+    }
+  }, [isCandidate, user?.email]);
+
   const nav = isAdmin
     ? [
         { label: 'Interviews', path: '/admin?tab=interviews' },
         { label: 'Candidates', path: '/admin?tab=candidates' },
+        { label: 'Upload Resume', path: '/admin/upload-resume' },
+        { label: 'Email Config', path: '/admin/email-config' },
         { label: 'Job Roles', path: '/admin?tab=jobroles' },
         { label: 'Questions', path: '/admin?tab=questions' },
         { label: 'Insights', path: '/admin?tab=insights' },
         { label: 'Settings', path: '/admin?tab=settings' },
         { label: 'Admin Tools', path: '/admin?tab=admin' },
       ]
+    : isInvitedCandidate
+    ? [
+        // Invited candidates only see Interview
+        { label: 'Interview', path: '/interview' },
+      ]
     : [
+        // Self-registered candidates see both
         { label: 'Upload Resume', path: '/upload' },
         { label: 'Interview', path: '/interview' },
       ];
@@ -169,7 +261,10 @@ function SidebarLayout({ children }: { children: React.ReactNode }) {
             <button
               key={item.label}
               className={`w-full text-left px-6 py-2 rounded ${location === item.path ? 'bg-primary text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-              onClick={() => setLocation(item.path)}
+              onClick={() => {
+                console.log('Navigating to:', item.path);
+                setLocation(item.path);
+              }}
             >
               {item.label}
             </button>
@@ -217,10 +312,13 @@ export default function App() {
       <SidebarLayout>
         <Switch>
           {/* Candidate routes */}
-          <Route path="/upload" component={InterviewUpload} />
+          <Route path="/upload" component={ProtectedUploadRoute} />
           <Route path="/interview" component={InterviewSession} />
-          {/* Admin route */}
+          {/* Admin routes */}
           <Route path="/admin" component={AdminDashboard} />
+          <Route path="/admin/upload-resume" component={AdminResumeUpload} />
+          <Route path="/admin/email-config" component={AdminEmailConfig} />
+          <Route path="/admin/interview/:id" component={AdminInterviewResults} />
           {/* Fallback */}
           <Route component={NotFound} />
         </Switch>

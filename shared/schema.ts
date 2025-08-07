@@ -11,6 +11,7 @@ export const candidates = pgTable("candidates", {
   resumeText: text("resume_text").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   disqualified: boolean("disqualified").default(false).notNull(),
+  invited: boolean("invited").default(false).notNull(),
 });
 
 export const interviews = pgTable("interviews", {
@@ -84,6 +85,19 @@ export const tokenUsage = pgTable("token_usage", {
   tokens: integer("tokens").notNull(),
   cost: integer("cost").notNull(), // store as cents for precision
   timestamp: timestamp("timestamp").defaultNow().notNull(),
+});
+
+export const invitations = pgTable("invitations", {
+  id: serial("id").primaryKey(),
+  candidateId: integer("candidate_id").references(() => candidates.id),
+  email: text("email").notNull(),
+  token: text("token").notNull().unique(),
+  jobRole: text("job_role").notNull(),
+  skillset: text("skillset").notNull(),
+  status: text("status").default("pending").notNull(),
+  candidateInfo: jsonb("candidate_info"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 // Insert schemas
