@@ -50,4 +50,4 @@ Required environment variables for deployment:
 
 ## License
 
-MIT License
+MIT License# Force Vercel deployment update
