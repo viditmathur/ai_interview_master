@@ -34,7 +34,6 @@ async function extractTextFromFile(buffer: Buffer, mimetype: string, filename: s
     if (mimetype === 'application/pdf') {
       try {
         // Use dynamic import with a different approach
-        const pdfParse = await import('pdf-parse');
         const data = await pdfParse.default(buffer);
         console.log("PDF parsed successfully, extracted text length:", data.text.length);
         return data.text;

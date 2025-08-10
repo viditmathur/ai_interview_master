@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CloudUpload, File, X } from 'lucide-react';
+import { Cloud, File, X } from 'lucide-react';
 
 interface FileUploadProps {
   onFileSelect: (file: File) => void;
@@ -114,7 +114,7 @@ export function FileUpload({ onFileSelect, selectedFile, onFileRemove }: FileUpl
           onDrop={handleDrop}
         >
           <div className="mb-4">
-            <CloudUpload className="h-12 w-12 text-gray-400 mx-auto" />
+            <Cloud className="h-12 w-12 text-gray-400 mx-auto" />
           </div>
           <div className="mb-4">
             <p className="text-gray-600 font-medium">Drag and drop your resume here</p>
