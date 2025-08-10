@@ -1,10 +1,10 @@
 import OpenAI from "openai";
-import type { QuestionSet, AnswerEvaluation, InterviewSummary } from "@shared/schema";
+import type { QuestionSet, AnswerEvaluation, InterviewSummary } from "../../shared/schema";
 import { generateMockQuestions, evaluateMockAnswer, generateMockSummary } from "./mock-ai";
 import * as fetch from 'node-fetch';
 import * as fs from 'fs';
 import * as path from 'path';
-import { questionBank } from "@shared/schema";
+import { questionBank } from "../../shared/schema";
 import { eq } from "drizzle-orm";
 import { storage } from "../storage";
 

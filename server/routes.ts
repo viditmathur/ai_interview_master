@@ -4,10 +4,10 @@ import multer from "multer";
 import bcrypt from "bcryptjs";
 import { storage } from "./storage";
 import { generateInterviewQuestions, evaluateAnswer, generateFinalSummary } from "./services/openai";
-import { insertCandidateSchema, insertAnswerSchema, insertUserSchema } from "@shared/schema";
+import { insertCandidateSchema, insertAnswerSchema, insertUserSchema } from "../shared/schema";
 import { emailService } from "./services/email-service";
 import { z } from "zod";
-import pdfParse from 'pdf-parse';
+import * as pdfParse from 'pdf-parse';
 import { RtcTokenBuilder } from 'agora-access-token';
 import { generateTTS } from "./services/tts";
 
@@ -710,7 +710,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.createAuditLog({
         action: 'Delete Interview',
         target: `Interview ID ${interviewId}`,
-        performedBy: req.headers['x-user-email'] || 'unknown',
+        performedBy: (req.headers['x-user-email'] as string) || 'unknown',
       });
       res.json({ success: true });
     } catch (error) {

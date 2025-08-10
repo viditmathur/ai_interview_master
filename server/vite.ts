@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import * as express from "express";
 import * as fs from "fs";
 import * as path from "path";
 import { createServer as createViteServer, createLogger } from "vite";
@@ -19,7 +19,7 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
-export async function setupVite(app: Express, server: Server) {
+export async function setupVite(app: express.Express, server: Server) {
   const serverOptions = {
     middlewareMode: true,
     hmr: { server },
@@ -46,7 +46,7 @@ export async function setupVite(app: Express, server: Server) {
 
     try {
       const clientTemplate = path.resolve(
-        import.meta.dirname,
+        __dirname,
         "..",
         "client",
         "index.html",
@@ -67,10 +67,10 @@ export async function setupVite(app: Express, server: Server) {
   });
 }
 
-export function serveStatic(app: Express) {
+export function serveStatic(app: express.Express) {
   // Check for the correct build directory path
-  const distPath = path.resolve(import.meta.dirname, "..", "dist", "public");
-  const fallbackPath = path.resolve(import.meta.dirname, "public");
+  const distPath = path.resolve(__dirname, "..", "dist", "public");
+  const fallbackPath = path.resolve(__dirname, "public");
 
   let staticPath = distPath;
   if (!fs.existsSync(distPath)) {

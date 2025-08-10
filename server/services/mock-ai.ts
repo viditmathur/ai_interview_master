@@ -1,4 +1,4 @@
-import type { QuestionSet, AnswerEvaluation, InterviewSummary } from "@shared/schema";
+import type { QuestionSet, AnswerEvaluation, InterviewSummary } from "../../shared/schema";
 
 // Mock AI service for when OpenAI is not available
 export function generateMockQuestions(
