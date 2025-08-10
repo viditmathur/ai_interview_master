@@ -1,6 +1,7 @@
 {
   "name": "client",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -21,6 +22,7 @@
     "lucide-react": "^0.303.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
-    "tailwind-merge": "^2.2.0"
+    "tailwind-merge": "^2.2.0",
+    "@radix-ui/react-slot": "^1.0.2"
   }
 }
